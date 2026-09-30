@@ -78,11 +78,11 @@ def _fmt(value):
 
 # name -> (label, help, parser, group)
 FIELDS = {
-    "active_time": ("Lantern ON time", "Reference time lanterns switch on (HH:MM).", _time, "times"),
-    "inactive_time": ("Lantern OFF time", "Reference time lanterns switch off (HH:MM).", _time, "times"),
-    "LM_active_time": ("Manual override ON time", "Manual-override reference ON time (HH:MM).", _time, "times"),
-    "node_off_time": ("Manual override OFF time", "Manual-override reference OFF time (HH:MM).", _time, "times"),
-    "GPS_poll_time": ("GPS mapping start time", "When the daily GPS mapping scan starts (HH:MM).", _time, "times"),
+    "active_time": ("Lantern ON time", "Reference time lanterns switch on.", _time, "times"),
+    "inactive_time": ("Lantern OFF time", "Reference time lanterns switch off.", _time, "times"),
+    "LM_active_time": ("Manual override ON time", "Manual-override reference ON time.", _time, "times"),
+    "node_off_time": ("Manual override OFF time", "Manual-override reference OFF time.", _time, "times"),
+    "GPS_poll_time": ("GPS mapping start time", "When the daily GPS mapping scan starts.", _time, "times"),
     "pollinggap": ("Polling gap (s)", "Interval between polling one node and the next.", _int(1, 600), "polling"),
     "cycletime": ("Cycle time (s)", "Node polling cycle time. Must be at least (number of nodes x polling gap).", _int(1, 86400), "polling"),
     "aggressive_poll_duration_mins": ("Aggressive polling (min)", "How long nodes are polled aggressively after the ON time.", _int(0, 1440), "polling"),

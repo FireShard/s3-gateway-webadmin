@@ -3,26 +3,42 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{% block title %}{% endblock %} · S3 Gateway</title>
+<title>{% block title %}{% endblock %} - S3 Gateway</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-{% if session.get('auth') or request.endpoint not in ('login',) %}
-<header class="top">
-  <div class="brand">S3 Gateway</div>
-  <nav>
-    {% for ep, label in [('overview','Overview'),('devices','Devices'),('settings_page','Settings'),('logs','Logs')] %}
-    <a href="{{ url_for(ep) }}" class="{{ 'active' if request.endpoint == ep else '' }}">{{ label }}</a>
-    {% endfor %}
-  </nav>
-  <form method="post" action="{{ url_for('logout') }}"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button class="link">Log out</button></form>
-</header>
+{% set logo %}<svg width="26" height="26" viewBox="0 0 26 26" fill="none" aria-hidden="true"><path d="M5 23V6a4 4 0 0 1 4-4h6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><circle cx="18" cy="8.5" r="4" fill="#f2a900"/><path d="M18 14v3M13.5 12.5l-2 2M22.5 12.5l2 2" stroke="#f2a900" stroke-width="1.6" stroke-linecap="round"/></svg>{% endset %}
+{% if request.endpoint == 'login' %}
+  {% block login %}{% endblock %}
+{% else %}
+<div class="shell">
+  <aside class="side">
+    <div class="brand">{{ logo }}<div>S3 Gateway</div></div>
+    <nav aria-label="Main">
+      <a href="{{ url_for('overview') }}" class="{{ 'active' if request.endpoint == 'overview' }}"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg><span>Overview</span></a>
+      <a href="{{ url_for('devices') }}" class="{{ 'active' if request.endpoint == 'devices' }}"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.5"/><path d="M7.5 7.5a6.4 6.4 0 0 0 0 9M16.5 7.5a6.4 6.4 0 0 1 0 9M4.5 4.5a10.6 10.6 0 0 0 0 15M19.5 4.5a10.6 10.6 0 0 1 0 15"/></svg><span>Devices</span></a>
+      <a href="{{ url_for('settings_page') }}" class="{{ 'active' if request.endpoint == 'settings_page' }}"><svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg><span>Settings</span></a>
+      <a href="{{ url_for('logs') }}" class="{{ 'active' if request.endpoint == 'logs' }}"><svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M9 12h7M9 16h7M9 8h3"/></svg><span>Logs</span></a>
+    </nav>
+    <div class="spacer"></div>
+    <form method="post" action="{{ url_for('logout') }}"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button class="logout">Log out</button></form>
+  </aside>
+  <main>
+    {% with msgs = get_flashed_messages(with_categories=true) %}
+      {% for cat, msg in msgs %}<div class="flash {{ cat }}" role="status">{{ msg }}</div>{% endfor %}
+    {% endwith %}
+    {% block body %}{% endblock %}
+  </main>
+</div>
+{% if pending is sameas true and request.endpoint != 'overview' %}
+<div class="pending" role="status">
+  <span>You have saved changes that the gateway is not using yet.</span>
+  <form method="post" action="{{ url_for('apply_changes') }}" onsubmit="return confirm('Applying restarts the gateway, and polling stops for a short time. Continue?');">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <button class="primary">Apply changes</button>
+  </form>
+</div>
 {% endif %}
-<main>
-  {% with msgs = get_flashed_messages(with_categories=true) %}
-    {% for cat, msg in msgs %}<div class="flash {{ cat }}">{{ msg }}</div>{% endfor %}
-  {% endwith %}
-  {% block body %}{% endblock %}
-</main>
+{% endif %}
 </body>
 </html>

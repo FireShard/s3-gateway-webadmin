@@ -1,40 +1,96 @@
 {% extends "base.html" %}
 {% block title %}Settings{% endblock %}
 {% block body %}
-<h1>Gateway settings <span class="muted">pygw_conf.py</span></h1>
-{% include "_pending.html" %}
-{% if warning %}<div class="banner warn">{{ warning }}</div>{% endif %}
+<div class="page-head"><h1>Gateway settings</h1><p>These values are stored in pygw_conf.py. The gateway uses them after you apply.</p></div>
+{% if warning %}<div class="notice">{{ warning }}</div>{% endif %}
+
 <form method="post">
   <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-  {% for gid, gtitle in groups %}
-  <section class="card"><h2>{{ gtitle }}</h2>
-    {% for name, (label, help, parser, group) in fields.items() if group == gid %}
-    <div class="field {{ 'err' if name in errors }}">
-      <label>{{ label }}</label>
-      {% if group == 'gateway' %}
-        {% set v = values[name] or ['', '', ''] %}
-        <div class="triple">
-          <input name="{{ name }}__0" value="{{ v[0] }}" placeholder="Node ID" maxlength="4" title="Gateway node ID">
-          <input name="{{ name }}__1" value="{{ v[1] }}" placeholder="PAN ID" maxlength="4" title="PAN ID (hex)">
-          <input name="{{ name }}__2" value="{{ v[2] }}" placeholder="Channel" type="number" min="11" max="26" title="Channel 11-26">
+
+  <section class="panel">
+    <header><h2>Daily schedule</h2><p>Times follow the gateway's own clock.</p></header>
+    <div class="body">
+      <div class="track" aria-hidden="true">
+        <div class="bar" id="bar"></div>
+        <div class="axis"><span>12:00</span><span>18:00</span><span>00:00</span><span>06:00</span><span>12:00</span></div>
+      </div>
+      <div class="legend" aria-hidden="true">
+        <span><i style="background:#f2a900"></i>Lanterns on</span>
+        <span><i style="background:#14213d"></i>Manual override</span>
+        <span><i style="background:#1f4e9e"></i>GPS mapping starts</span>
+      </div>
+      <div class="fields" style="margin-top:1.25rem">
+        {% for name, (label, help, parser, group) in fields.items() if group == 'times' %}
+        <div class="field {{ 'err' if name in errors }}">
+          <label for="{{ name }}">{{ label }}</label>
+          <input id="{{ name }}" name="{{ name }}" value="{{ values[name] }}" type="time" required>
+          <small>{{ errors[name] if name in errors else help }}</small>
         </div>
-      {% elif group == 'times' %}
-        <input name="{{ name }}" value="{{ values[name] }}" type="time" required>
-      {% else %}
-        <input name="{{ name }}" value="{{ values[name] }}" {% if name == 'minimum_power' %}type="number" step="0.1"{% else %}type="number"{% endif %} required>
-      {% endif %}
-      <small>{{ errors[name] if name in errors else help }}</small>
+        {% endfor %}
+      </div>
     </div>
-    {% endfor %}
   </section>
-  {% endfor %}
-  <button class="primary">Save settings</button>
-  <span class="muted">Saving writes <code>pygw_conf.py</code> (previous version is backed up). Changes take effect after Apply.</span>
+
+  <section class="panel">
+    <header><h2>Polling</h2></header>
+    <div class="body"><div class="fields">
+      {% for name, (label, help, parser, group) in fields.items() if group == 'polling' %}
+      <div class="field {{ 'err' if name in errors }}">
+        <label for="{{ name }}">{{ label }}</label>
+        <input id="{{ name }}" name="{{ name }}" value="{{ values[name] }}" type="number" {% if name == 'minimum_power' %}step="0.1"{% endif %} required>
+        <small>{{ errors[name] if name in errors else help }}</small>
+      </div>
+      {% endfor %}
+    </div></div>
+  </section>
+
+  <section class="panel">
+    <header><h2>Static gateway specs</h2><p>Each gateway needs a node ID, a PAN ID and a channel (11 to 26).</p></header>
+    <div class="body"><div class="fields">
+      {% for name, (label, help, parser, group) in fields.items() if group == 'gateway' %}
+      {% set v = values[name] or ['', '', ''] %}
+      <div class="field {{ 'err' if name in errors }}">
+        <label for="{{ name }}__0">{{ label }}</label>
+        <div class="triple">
+          <input id="{{ name }}__0" name="{{ name }}__0" value="{{ v[0] }}" placeholder="Node ID" maxlength="4" aria-label="{{ label }} node ID">
+          <input name="{{ name }}__1" value="{{ v[1] }}" placeholder="PAN ID" maxlength="4" aria-label="{{ label }} PAN ID">
+          <input name="{{ name }}__2" value="{{ v[2] }}" placeholder="Channel" type="number" min="11" max="26" aria-label="{{ label }} channel">
+        </div>
+        <small>{{ errors[name] if name in errors else help }}</small>
+      </div>
+      {% endfor %}
+    </div></div>
+  </section>
+
+  <div class="savebar">
+    <button class="primary">Save settings</button>
+    <span class="muted">The previous pygw_conf.py is backed up on every save.</span>
+  </div>
 </form>
 
 {% if readonly %}
-<section class="card"><h2>Other values <span class="muted">(read-only)</span></h2>
-  <table>{% for k, v in readonly.items() %}<tr><td><code>{{ k }}</code></td><td>{{ v }}</td></tr>{% endfor %}</table>
+<section class="panel plain" style="margin-top:1.5rem">
+  <div class="toolbar"><h2>Other values in pygw_conf.py</h2><span class="muted">Read only</span></div>
+  <table><tbody>{% for k, v in readonly.items() %}<tr><td style="width:14rem"><code>{{ k }}</code></td><td>{{ v }}</td></tr>{% endfor %}</tbody></table>
 </section>
 {% endif %}
+
+<script>
+// Night track: noon-to-noon axis so the overnight window is one continuous bar.
+const bar = document.getElementById('bar');
+const mins = id => { const v = (document.getElementById(id).value || '').split(':'); return v.length === 2 ? (+v[0]) * 60 + (+v[1]) : null; };
+const pos = m => ((m - 720 + 1440) % 1440) / 1440 * 100;
+function seg(cls, a, b) {
+  if (a === null || b === null) return '';
+  const l = pos(a), w = ((pos(b) - l) + 100) % 100;
+  return '<div class="seg ' + cls + '" style="left:' + l + '%;width:' + w + '%"></div>';
+}
+function draw() {
+  const g = mins('GPS_poll_time');
+  bar.innerHTML = seg('on', mins('active_time'), mins('inactive_time')) + seg('man', mins('LM_active_time'), mins('node_off_time')) +
+    (g === null ? '' : '<div class="tick" style="left:' + pos(g) + '%"></div>');
+}
+['active_time','inactive_time','LM_active_time','node_off_time','GPS_poll_time'].forEach(id => document.getElementById(id).addEventListener('input', draw));
+draw();
+</script>
 {% endblock %}

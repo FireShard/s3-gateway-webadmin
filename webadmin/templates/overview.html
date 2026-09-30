@@ -1,31 +1,28 @@
 {% extends "base.html" %}
 {% block title %}Overview{% endblock %}
 {% block body %}
-<h1>Overview</h1>
-<div class="grid">
-  <section class="card"><h2>Gateway service</h2>
-    <p class="big" id="svc"><span class="dot {{ 'ok' if service == 'active' else 'bad' if service else '' }}"></span>{{ service or 'unknown' }}</p>
-  </section>
-  <section class="card"><h2>Devices in list</h2><p class="big">{{ node_count }}</p></section>
-  <section class="card"><h2>Config state</h2>
-    <p class="big" id="pend">
-      {% if pending is sameas true %}Changes pending
-      {% elif pending is sameas false %}Applied{% else %}Unknown{% endif %}
-    </p>
-    <p class="muted">{% if applied_at %}Last apply from this site: {{ applied_at }}{% else %}No apply recorded from this site yet.{% endif %}</p>
-  </section>
+<div class="page-head"><h1>Overview</h1><p>Check the gateway and push saved changes to it.</p></div>
+
+<div class="strip">
+  <div><div class="k">Gateway service</div>
+    <div class="v"><span class="lamp {{ 'ok' if service == 'active' else 'bad' if service else '' }}" id="lamp"></span><span id="svc">{{ service or 'Unknown' }}</span></div></div>
+  <div><div class="k">Devices in list</div><div class="v">{{ node_count }}</div><div class="s">From samplelist.csv</div></div>
+  <div><div class="k">Saved changes</div>
+    <div class="v"><span class="lamp {{ 'warn' if pending is sameas true else 'ok' if pending is sameas false else '' }}" id="plamp"></span><span id="pend">{% if pending is sameas true %}Not applied{% elif pending is sameas false %}Applied{% else %}Unknown{% endif %}</span></div>
+    <div class="s">{% if applied_at %}Last applied {{ applied_at }}{% else %}No apply from this site yet{% endif %}</div></div>
 </div>
 
-<section class="card" id="apply">
-  <h2>Apply changes</h2>
-  <p>Runs <code>s3-gateway-dbup</code>: validates <code>samplelist.csv</code> and <code>pygw_conf.py</code>, backs up PostgreSQL and the current production files,
-  syncs the database, and <b>restarts the gateway service</b>. Devices removed from the list are removed from the database.</p>
-  <form method="post" action="{{ url_for('apply_changes') }}" onsubmit="return confirm('This restarts the gateway and polling is interrupted briefly. Continue?');">
-    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-    <button class="primary" id="applybtn" {{ 'disabled' if apply.running }}>Apply now</button>
-  </form>
-  <pre id="applyout" class="out" {{ '' if apply.output else 'hidden' }}>{{ apply.output }}</pre>
-  <p id="applyres" class="muted"></p>
+<section class="panel" id="apply">
+  <header><h2>Apply changes</h2>
+    <p>Checks samplelist.csv and pygw_conf.py, backs up the database and current files, syncs the database, then restarts the gateway. Devices you removed from the list are deleted from the database.</p></header>
+  <div class="body">
+    <form method="post" action="{{ url_for('apply_changes') }}" onsubmit="return confirm('Applying restarts the gateway, and polling stops for a short time. Continue?');">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <button class="primary" id="applybtn" {{ 'disabled' if apply.running }}>Apply changes</button>
+      <span class="muted" id="applyres" style="margin-left:.75rem"></span>
+    </form>
+    <pre id="applyout" class="out" {{ '' if apply.output else 'hidden' }}>{{ apply.output }}</pre>
+  </div>
 </section>
 <script>
 const out = document.getElementById('applyout'), btn = document.getElementById('applybtn'), res = document.getElementById('applyres');
@@ -36,8 +33,10 @@ async function poll() {
     const d = await r.json();
     if (d.output) { out.hidden = false; out.textContent = d.output; out.scrollTop = out.scrollHeight; }
     btn.disabled = d.running;
-    res.textContent = d.running ? 'Running…' : (d.rc === null ? '' : (d.rc === 0 ? 'Finished successfully.' : 'Failed (exit code ' + d.rc + '). See output above.'));
-    document.getElementById('pend').textContent = d.pending === true ? 'Changes pending' : d.pending === false ? 'Applied' : 'Unknown';
+    res.textContent = d.running ? 'Applying...' : (d.rc === null ? '' : (d.rc === 0 ? 'Applied successfully.' : 'Apply failed (exit code ' + d.rc + '). See the output below.'));
+    document.getElementById('pend').textContent = d.pending === true ? 'Not applied' : d.pending === false ? 'Applied' : 'Unknown';
+    document.getElementById('plamp').className = 'lamp ' + (d.pending === true ? 'warn' : d.pending === false ? 'ok' : '');
+    if (d.service) { document.getElementById('svc').textContent = d.service; document.getElementById('lamp').className = 'lamp ' + (d.service === 'active' ? 'ok' : 'bad'); }
     if (d.running) setTimeout(poll, 1500);
   } catch (e) {}
 }

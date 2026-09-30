@@ -1,54 +1,66 @@
 {% extends "base.html" %}
 {% block title %}Logs{% endblock %}
 {% block body %}
-<h1>Logs</h1>
-<section class="card">
-  <div class="row wrap">
-    <label>Log
-      <select id="kind">{% for k in ['gateway','mqtt','error'] %}<option value="{{ k }}" {{ 'selected' if k == kind }}>{{ k }}</option>{% endfor %}</select>
-    </label>
-    <label>File <select id="file"></select></label>
-    <label>Lines
-      <select id="lines"><option>100</option><option selected>200</option><option>500</option><option>1000</option><option>2000</option></select>
-    </label>
-    <label>Level
-      <select id="level"><option value="">all</option>{% for l in levels %}<option>{{ l }}</option>{% endfor %}</select>
-    </label>
-    <label class="grow">Search <input id="q" type="search" placeholder="text to find…"></label>
-    <label class="chk"><input type="checkbox" id="auto" checked> Auto-refresh</label>
-    <a class="btn" id="dl" href="#">Download</a>
+<div class="page-head"><h1>Logs</h1><p>Read-only view of what the gateway writes to disk.</p></div>
+<section class="panel plain">
+  <div class="log-tools">
+    <div><label for="kind">Log</label>
+      <select id="kind">{% for k, n in [('gateway','Gateway'),('mqtt','MQTT'),('error','Errors')] %}<option value="{{ k }}" {{ 'selected' if k == kind }}>{{ n }}</option>{% endfor %}</select></div>
+    <div><label for="file">File</label><select id="file"></select></div>
+    <div><label for="lines">Lines</label>
+      <select id="lines"><option>100</option><option selected>200</option><option>500</option><option>1000</option><option>2000</option></select></div>
+    <div><label for="level">Level</label>
+      <select id="level"><option value="">All</option>{% for l in levels %}<option>{{ l }}</option>{% endfor %}</select></div>
+    <div><label for="q">Search</label><input id="q" type="search" placeholder="Find text in these lines"></div>
   </div>
-  <p class="muted" id="meta"></p>
-  <pre id="log" class="out tall">Loading…</pre>
+  <div class="log-sub">
+    <span class="grow" id="meta">Loading</span>
+    <label><input type="checkbox" id="auto" checked> Refresh every 5 seconds</label>
+    <a class="btn sm" id="dl" href="#">Download file</a>
+  </div>
+  <div id="log" class="term" tabindex="0" aria-label="Log output"></div>
 </section>
 <script>
 const FILES = {{ files|tojson }};
 const $ = id => document.getElementById(id);
-const kind = $('kind'), file = $('file'), pre = $('log');
+const kind = $('kind'), file = $('file'), term = $('log');
+const LEVEL = /\b(ERROR|WARNING|INFO|DEBUG)\b/;
 function fillFiles() {
   file.innerHTML = '';
   (FILES[kind.value] || []).forEach(n => file.add(new Option(n === kind.value + '.log' ? n + ' (current)' : n, n)));
-  if (!file.options.length) { file.add(new Option('(no files found)', '')); }
+  if (!file.options.length) file.add(new Option('No files found', ''));
+}
+function show(lines, emptyText) {
+  term.textContent = '';
+  if (!lines.length) { const d = document.createElement('div'); d.className = 'ln none'; d.textContent = emptyText; term.appendChild(d); return; }
+  const frag = document.createDocumentFragment();
+  lines.forEach(t => {
+    const d = document.createElement('div'), m = LEVEL.exec(t);
+    d.className = 'ln' + (m ? ' ' + m[1] : '');
+    d.textContent = t;
+    frag.appendChild(d);
+  });
+  term.appendChild(frag);
 }
 async function load() {
-  if (!file.value) { pre.textContent = 'No log file found in the log directory yet.'; $('meta').textContent = ''; return; }
+  if (!file.value) { show([], 'The gateway has not written this log yet.'); $('meta').textContent = ''; return; }
   const p = new URLSearchParams({file: file.value, lines: $('lines').value, q: $('q').value, level: $('level').value});
   $('dl').href = '{{ url_for("log_download") }}?file=' + encodeURIComponent(file.value);
   try {
     const r = await fetch('{{ url_for("api_logs") }}?' + p);
     if (r.status === 401) { location.href = '{{ url_for("login") }}'; return; }
     const d = await r.json();
-    if (d.error) { pre.textContent = d.error; return; }
-    const atBottom = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 30;
-    pre.textContent = d.lines.length ? d.lines.join('\n') : '(no matching lines)';
-    if (atBottom) pre.scrollTop = pre.scrollHeight;
-    $('meta').textContent = 'Showing ' + d.lines.length + ' of ' + d.matched + ' matching lines · file size ' + (d.size/1024).toFixed(1) + ' KB · updated ' + new Date().toLocaleTimeString();
-  } catch (e) { $('meta').textContent = 'Could not load log.'; }
+    if (d.error) { show([], d.error); return; }
+    const atBottom = term.scrollTop + term.clientHeight >= term.scrollHeight - 30;
+    show(d.lines, 'No lines match these filters.');
+    if (atBottom) term.scrollTop = term.scrollHeight;
+    $('meta').textContent = 'Showing ' + d.lines.length + ' of ' + d.matched + ' matching lines, file size ' + (d.size / 1024).toFixed(1) + ' KB, updated ' + new Date().toLocaleTimeString();
+  } catch (e) { $('meta').textContent = 'Could not load the log. Check that the gateway is reachable.'; }
 }
-kind.onchange = () => { fillFiles(); load(); };
+kind.onchange = () => { fillFiles(); load().then(() => term.scrollTop = term.scrollHeight); };
 ['file','lines','level'].forEach(i => $(i).onchange = load);
 let t; $('q').oninput = () => { clearTimeout(t); t = setTimeout(load, 300); };
 setInterval(() => { if ($('auto').checked && file.selectedIndex <= 0) load(); }, 5000);
-fillFiles(); load().then(() => pre.scrollTop = pre.scrollHeight);
+fillFiles(); load().then(() => term.scrollTop = term.scrollHeight);
 </script>
 {% endblock %}

@@ -1,72 +1,70 @@
 {% extends "base.html" %}
 {% block title %}Devices{% endblock %}
 {% block body %}
-<h1>Devices <span class="muted">samplelist.csv · {{ rows|length }} nodes</span></h1>
-{% include "_pending.html" %}
+<div class="page-head"><h1>Devices</h1><p>{{ rows|length }} node{{ '' if rows|length == 1 else 's' }} in samplelist.csv. Saving a change edits the file; the gateway uses it after you apply.</p></div>
 
-<section class="card">
-  <h2>Add a device</h2>
-  <form method="post" action="{{ url_for('device_add') }}" class="inline">
-    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-    <label>Pole node <input name="pole_node" placeholder="R1-2" required maxlength="32"></label>
-    <label>Node ID (4 hex) <input name="node" placeholder="8EED" required maxlength="4" pattern="[0-9A-Fa-f]{4}"></label>
-    <label>PAN ID <input name="pan_id" value="{{ default_pan }}" required maxlength="4" pattern="[0-9A-Fa-f]{1,4}"></label>
-    <label>Channel <input name="channel" type="number" min="11" max="26" value="{{ default_channel }}" required></label>
-    <button class="primary">Add</button>
-  </form>
-  <details><summary>Add many at once</summary>
-    <form method="post" action="{{ url_for('device_bulk') }}">
+<section class="panel">
+  <header><h2>Add a device</h2></header>
+  <div class="body">
+    <form method="post" action="{{ url_for('device_add') }}" class="form-row">
       <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-      <p class="muted">One per line: <code>pole,node</code> (PAN/channel default to {{ default_pan }} / {{ default_channel }}) or <code>pole,node,pan,channel</code>. All-or-nothing.</p>
-      <textarea name="bulk" rows="6" placeholder="R1-2,8EED&#10;R1-3,8EEE,1001,20"></textarea>
-      <button class="primary">Add all</button>
+      <div><label for="a1">Pole node</label><input id="a1" name="pole_node" placeholder="R1-2" required maxlength="32"></div>
+      <div><label for="a2">Node ID (4 hex characters)</label><input id="a2" class="id" name="node" placeholder="8EED" required maxlength="4" pattern="[0-9A-Fa-f]{4}"></div>
+      <div><label for="a3">PAN ID</label><input id="a3" name="pan_id" value="{{ default_pan }}" required maxlength="4" pattern="[0-9A-Fa-f]{1,4}"></div>
+      <div><label for="a4">Channel</label><input id="a4" name="channel" type="number" min="11" max="26" value="{{ default_channel }}" required></div>
+      <button class="primary">Add device</button>
     </form>
-  </details>
+    <details style="margin-top:1rem"><summary>Add several devices at once</summary>
+      <form method="post" action="{{ url_for('device_bulk') }}" style="margin-top:.5rem">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <p class="muted">One device per line, as <code>pole,node</code> or <code>pole,node,pan,channel</code>. PAN ID and channel default to {{ default_pan }} and {{ default_channel }}. If any line is wrong, nothing is added.</p>
+        <textarea name="bulk" rows="6" aria-label="Devices to add" placeholder="R1-2,8EED&#10;R1-3,8EEE,1001,20"></textarea>
+        <button class="primary" style="margin-top:.5rem">Add devices</button>
+      </form>
+    </details>
+  </div>
 </section>
 
-<section class="card">
-  <div class="row"><h2>Current list</h2>
-    <input id="filter" type="search" placeholder="Filter…" class="grow">
+<section class="panel plain">
+  <div class="toolbar">
+    <h2>Device list</h2>
+    <input id="filter" type="search" placeholder="Filter devices" aria-label="Filter devices">
     <a class="btn" href="{{ url_for('device_download') }}">Download CSV</a>
   </div>
-  <div class="scroll"><table id="tbl">
-    <thead><tr><th>Pole node</th><th>Node ID</th><th>PAN ID</th><th>Channel</th><th></th></tr></thead>
+  <div class="table-wrap"><table id="tbl">
+    <thead><tr><th>Pole node</th><th>Node ID</th><th>PAN ID</th><th>Channel</th><th><span class="sr">Actions</span></th></tr></thead>
     <tbody>
     {% for r in rows %}
     <tr>
-      <form method="post" action="{{ url_for('device_edit') }}" id="f{{ loop.index }}">
-        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-        <input type="hidden" name="original_node" value="{{ r.node }}">
-      </form>
-      <td><input form="f{{ loop.index }}" name="pole_node" value="{{ r.pole_node }}" maxlength="32" required></td>
-      <td><input form="f{{ loop.index }}" name="node" value="{{ r.node }}" maxlength="4" pattern="[0-9A-Fa-f]{4}" required class="s"></td>
-      <td><input form="f{{ loop.index }}" name="pan_id" value="{{ r.pan_id }}" maxlength="4" pattern="[0-9A-Fa-f]{1,4}" required class="s"></td>
-      <td><input form="f{{ loop.index }}" name="channel" type="number" min="11" max="26" value="{{ r.channel }}" required class="s"></td>
+      <td><form method="post" action="{{ url_for('device_edit') }}" id="f{{ loop.index }}"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="original_node" value="{{ r.node }}"></form>
+        <input form="f{{ loop.index }}" name="pole_node" value="{{ r.pole_node }}" maxlength="32" required aria-label="Pole node"></td>
+      <td><input form="f{{ loop.index }}" class="id" name="node" value="{{ r.node }}" maxlength="4" pattern="[0-9A-Fa-f]{4}" required aria-label="Node ID" style="width:6rem"></td>
+      <td><input form="f{{ loop.index }}" class="id" name="pan_id" value="{{ r.pan_id }}" maxlength="4" pattern="[0-9A-Fa-f]{1,4}" required aria-label="PAN ID" style="width:6rem"></td>
+      <td><input form="f{{ loop.index }}" name="channel" type="number" min="11" max="26" value="{{ r.channel }}" required aria-label="Channel" style="width:5.5rem"></td>
       <td class="acts">
-        <button form="f{{ loop.index }}" class="btn">Save</button>
-        <form method="post" action="{{ url_for('device_delete') }}" style="display:inline" onsubmit="return confirm('Remove {{ r.pole_node }} ({{ r.node }})? It will be deleted from the database on Apply.');">
+        <button form="f{{ loop.index }}" class="btn sm">Save</button>
+        <form method="post" action="{{ url_for('device_delete') }}" onsubmit="return confirm('Remove {{ r.pole_node }} ({{ r.node }})? It is deleted from the database when you apply.');">
           <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="node" value="{{ r.node }}">
-          <button class="btn danger">Remove</button>
+          <button class="btn sm danger">Remove</button>
         </form>
       </td>
     </tr>
-    {% else %}
-    <tr><td colspan="5" class="muted">No devices yet.</td></tr>
     {% endfor %}
     </tbody>
   </table></div>
+  {% if not rows %}<div class="empty">No devices yet. Add the first one above.</div>{% endif %}
 </section>
 
-<section class="card">
-  <details><summary>Replace the whole list from a CSV file</summary>
-    <form method="post" action="{{ url_for('device_replace') }}" enctype="multipart/form-data" onsubmit="return confirm('This replaces the entire node list. Devices not in the file will be removed on Apply. Continue?');">
+<section class="panel">
+  <div class="body"><details><summary>Replace the whole list from a CSV file</summary>
+    <form method="post" action="{{ url_for('device_replace') }}" enctype="multipart/form-data" style="margin-top:.5rem" onsubmit="return confirm('This replaces the entire list. Devices missing from the file are removed when you apply. Continue?');">
       <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-      <p class="muted">Header must be exactly <code>pole_node,node,pan_id,channel</code>. The previous file is backed up automatically.</p>
-      <input type="file" name="file" accept=".csv,text/csv" required>
-      <button class="btn danger">Replace list</button>
-    </form>
-  </details>
+      <p class="muted">The first line must be <code>pole_node,node,pan_id,channel</code>. The current file is backed up first.</p>
+      <input type="file" name="file" accept=".csv,text/csv" required aria-label="CSV file" style="max-width:24rem">
+      <button class="btn danger" style="margin-left:.5rem">Replace list</button>
+    </form></details></div>
 </section>
+<style>.sr{position:absolute;left:-9999px}</style>
 <script>
 document.getElementById('filter').addEventListener('input', e => {
   const q = e.target.value.toLowerCase();

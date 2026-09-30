@@ -51,6 +51,12 @@ def create_app(settings=None):
 
     app.jinja_env.globals["csrf_token"] = csrf_token
 
+    @app.context_processor
+    def shared_context():
+        if session.get("auth") or not s.password_hash:
+            return {"pending": applier.pending()}
+        return {}
+
     @app.before_request
     def guard():
         if request.endpoint in (None, "static"):

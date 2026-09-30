@@ -1,12 +1,16 @@
 {% extends "base.html" %}
-{% block title %}Login{% endblock %}
-{% block body %}
-<section class="card narrow">
-  <h1>Gateway login</h1>
-  <form method="post">
+{% block title %}Log in{% endblock %}
+{% block login %}
+<div class="login">
+  <form class="box" method="post">
+    <div class="brand"><svg width="26" height="26" viewBox="0 0 26 26" fill="none" aria-hidden="true"><path d="M5 23V6a4 4 0 0 1 4-4h6" stroke="#14213d" stroke-width="2.2" stroke-linecap="round"/><circle cx="18" cy="8.5" r="4" fill="#f2a900"/><path d="M18 14v3M13.5 12.5l-2 2M22.5 12.5l2 2" stroke="#f2a900" stroke-width="1.6" stroke-linecap="round"/></svg><div>S3 Gateway</div></div>
     <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-    <label>Password <input type="password" name="password" autofocus required></label>
+    <label for="pw">Password</label>
+    <input id="pw" type="password" name="password" autofocus required autocomplete="current-password">
     <button class="primary">Log in</button>
+    {% with msgs = get_flashed_messages(with_categories=true) %}
+      {% for cat, msg in msgs %}<div class="flash {{ cat }}" role="alert">{{ msg }}</div>{% endfor %}
+    {% endwith %}
   </form>
-</section>
+</div>
 {% endblock %}
