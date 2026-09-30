@@ -99,6 +99,10 @@ td.acts form{display:inline}
 
 /* ---- settings ---- */
 .fields{display:grid;grid-template-columns:repeat(auto-fill,minmax(15rem,1fr));gap:1.1rem 1.5rem}
+.field input[type=text]{font-family:var(--mono);font-size:.9375rem}
+.var{font:500 .9375rem var(--mono);letter-spacing:0}
+.check{display:flex;gap:.5rem;align-items:center;font-weight:400;font-size:.9375rem;margin:.5rem 0 0}
+.check input{width:auto}
 .field small{display:block;color:var(--muted);font-size:.875rem;margin-top:.25rem}
 .field.err input{border-color:var(--bad);background:var(--bad-soft)}
 .field.err small{color:var(--bad)}
