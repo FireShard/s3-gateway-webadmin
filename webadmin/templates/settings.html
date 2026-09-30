@@ -1,66 +1,62 @@
 {% extends "base.html" %}
 {% block title %}Settings{% endblock %}
 {% block body %}
-<div class="page-head"><h1>Gateway settings</h1><p>These values are stored in pygw_conf.py. The gateway uses them after you apply.</p></div>
-{% if warning %}<div class="notice">{{ warning }}</div>{% endif %}
+<div class="page-head"><h1>Gateway settings</h1><p>Each field is named after its variable in pygw_conf.py. The gateway uses new values after you apply.</p></div>
+{% for w in warnings %}<div class="notice">{{ w }}</div>{% endfor %}
 
-<form method="post">
+<form method="post" autocomplete="off">
   <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
 
+  {% for gid, gtitle, gdesc in groups %}
   <section class="panel">
-    <header><h2>Daily schedule</h2><p>Times follow the gateway's own clock.</p></header>
+    <header><h2>{{ gtitle }}</h2>{% if gdesc %}<p>{{ gdesc }}</p>{% endif %}</header>
     <div class="body">
+      {% if gid == 'times' %}
       <div class="track" aria-hidden="true">
         <div class="bar" id="bar"></div>
         <div class="axis"><span>12:00</span><span>18:00</span><span>00:00</span><span>06:00</span><span>12:00</span></div>
       </div>
       <div class="legend" aria-hidden="true">
-        <span><i style="background:#f2a900"></i>Lanterns on</span>
-        <span><i style="background:#14213d"></i>Manual override</span>
-        <span><i style="background:#1f4e9e"></i>GPS mapping starts</span>
+        <span><i style="background:#f2a900"></i>active_time to inactive_time</span>
+        <span><i style="background:#14213d"></i>LM_active_time to node_off_time</span>
+        <span><i style="background:#1f4e9e"></i>GPS_poll_time</span>
       </div>
-      <div class="fields" style="margin-top:1.25rem">
-        {% for name, (label, help, parser, group) in fields.items() if group == 'times' %}
+      {% endif %}
+      <div class="fields" {% if gid == 'times' %}style="margin-top:1.25rem"{% endif %}>
+        {% for name, f in fields.items() if f.group == gid %}
+        {% set v = values[name] %}
         <div class="field {{ 'err' if name in errors }}">
-          <label for="{{ name }}">{{ label }}</label>
-          <input id="{{ name }}" name="{{ name }}" value="{{ values[name] }}" type="time" required>
-          <small>{{ errors[name] if name in errors else help }}</small>
+          <label for="{{ name }}{{ '__0' if f.kind == 'gw' }}"><span class="var">{{ name }}</span></label>
+          {% if f.kind == 'gw' %}
+            {% set v = v or ['', '', ''] %}
+            <div class="triple">
+              <input id="{{ name }}__0" name="{{ name }}__0" value="{{ v[0] }}" placeholder="Node ID" maxlength="4" aria-label="{{ name }} node ID">
+              <input name="{{ name }}__1" value="{{ v[1] }}" placeholder="PAN ID" maxlength="4" aria-label="{{ name }} PAN ID">
+              <input name="{{ name }}__2" value="{{ v[2] }}" placeholder="Channel" type="number" min="11" max="26" aria-label="{{ name }} channel">
+            </div>
+          {% elif f.kind == 'time' %}
+            <input id="{{ name }}" name="{{ name }}" value="{{ v }}" type="time" required>
+          {% elif f.kind == 'int' %}
+            <input id="{{ name }}" name="{{ name }}" value="{{ v }}" type="number" required>
+          {% elif f.kind == 'float' %}
+            <input id="{{ name }}" name="{{ name }}" value="{{ v }}" type="number" step="0.1" required>
+          {% elif f.kind == 'bool' %}
+            {% set on = v in (True, 'true', 'True') %}
+            <select id="{{ name }}" name="{{ name }}"><option value="true" {{ 'selected' if on }}>True</option><option value="false" {{ 'selected' if not on }}>False</option></select>
+          {% elif f.kind == 'secret' %}
+            <input id="{{ name }}" name="{{ name }}" type="password" value="" autocomplete="new-password"
+                   placeholder="{{ 'Leave blank to keep the current password' if secret_set[name] else 'None (no password)' }}">
+            {% if secret_set[name] %}<label class="check"><input type="checkbox" name="{{ name }}__clear" value="1"> Remove the password (set {{ name }} to None)</label>{% endif %}
+          {% else %}
+            <input id="{{ name }}" name="{{ name }}" value="{{ v if v is not none else '' }}" type="text" spellcheck="false" {% if name == 'db_host' %}placeholder="None (local socket)"{% else %}required{% endif %}>
+          {% endif %}
+          <small>{{ errors[name] if name in errors else f.help }}{% if f.kind == 'secret' and secret_set[name] and name not in errors %} A password is currently set.{% endif %}</small>
         </div>
         {% endfor %}
       </div>
     </div>
   </section>
-
-  <section class="panel">
-    <header><h2>Polling</h2></header>
-    <div class="body"><div class="fields">
-      {% for name, (label, help, parser, group) in fields.items() if group == 'polling' %}
-      <div class="field {{ 'err' if name in errors }}">
-        <label for="{{ name }}">{{ label }}</label>
-        <input id="{{ name }}" name="{{ name }}" value="{{ values[name] }}" type="number" {% if name == 'minimum_power' %}step="0.1"{% endif %} required>
-        <small>{{ errors[name] if name in errors else help }}</small>
-      </div>
-      {% endfor %}
-    </div></div>
-  </section>
-
-  <section class="panel">
-    <header><h2>Static gateway specs</h2><p>Each gateway needs a node ID, a PAN ID and a channel (11 to 26).</p></header>
-    <div class="body"><div class="fields">
-      {% for name, (label, help, parser, group) in fields.items() if group == 'gateway' %}
-      {% set v = values[name] or ['', '', ''] %}
-      <div class="field {{ 'err' if name in errors }}">
-        <label for="{{ name }}__0">{{ label }}</label>
-        <div class="triple">
-          <input id="{{ name }}__0" name="{{ name }}__0" value="{{ v[0] }}" placeholder="Node ID" maxlength="4" aria-label="{{ label }} node ID">
-          <input name="{{ name }}__1" value="{{ v[1] }}" placeholder="PAN ID" maxlength="4" aria-label="{{ label }} PAN ID">
-          <input name="{{ name }}__2" value="{{ v[2] }}" placeholder="Channel" type="number" min="11" max="26" aria-label="{{ label }} channel">
-        </div>
-        <small>{{ errors[name] if name in errors else help }}</small>
-      </div>
-      {% endfor %}
-    </div></div>
-  </section>
+  {% endfor %}
 
   <div class="savebar">
     <button class="primary">Save settings</button>
@@ -70,8 +66,8 @@
 
 {% if readonly %}
 <section class="panel plain" style="margin-top:1.5rem">
-  <div class="toolbar"><h2>Other values in pygw_conf.py</h2><span class="muted">Read only</span></div>
-  <table><tbody>{% for k, v in readonly.items() %}<tr><td style="width:14rem"><code>{{ k }}</code></td><td>{{ v }}</td></tr>{% endfor %}</tbody></table>
+  <div class="toolbar"><h2>Other variables in pygw_conf.py</h2><span class="muted">Read only</span></div>
+  <table><tbody>{% for k, v in readonly.items() %}<tr><td style="width:14rem"><span class="var">{{ k }}</span></td><td>{{ v }}</td></tr>{% endfor %}</tbody></table>
 </section>
 {% endif %}
 

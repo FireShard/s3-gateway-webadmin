@@ -236,21 +236,33 @@ def create_app(settings=None):
     # -------------------------------------------------------------- settings
     def _settings_context(values=None, errors=None):
         loaded = confstore.load(s.conf_path)
-        vals = values if values is not None else loaded["values"]
+        vals = dict(values if values is not None else loaded["values"])
         nodes = len(csvstore.load(s.csv_path))
+        # secrets are never sent back to the browser, only whether one is set
+        secret_set = {k: bool(loaded["values"].get(k)) for k in confstore.SECRETS}
+        for k in confstore.SECRETS:
+            vals[k] = ""
+        warnings = [] if errors else [w for w in (confstore.cycle_warning(vals, nodes),
+                                                  confstore.local_db_warning(vals)) if w]
         return dict(groups=confstore.GROUPS, fields=confstore.FIELDS, values=vals,
-                    errors=errors or {}, readonly=loaded["readonly"],
-                    warning=confstore.cycle_warning(vals, nodes) if not errors else None,
-                    node_count=nodes, pending=applier.pending())
+                    errors=errors or {}, readonly=loaded["readonly"], secret_set=secret_set,
+                    warnings=warnings, node_count=nodes, pending=applier.pending())
 
     @app.route("/settings", methods=["GET", "POST"])
     def settings_page():
         if request.method == "GET":
             return render_template("settings.html", **_settings_context())
         form = {}
-        for name in confstore.FIELDS:
-            if name.endswith("_GW_data"):
-                form[name] = [request.form.get(f"{name}__{i}", "") for i in range(3)]
+        for name, field in confstore.FIELDS.items():
+            if field.kind == "gw":
+                if any(f"{name}__{i}" in request.form for i in range(3)):
+                    form[name] = [request.form.get(f"{name}__{i}", "") for i in range(3)]
+            elif field.kind == "secret":
+                if request.form.get(f"{name}__clear"):
+                    form[name] = ""          # remove the password (None)
+                elif request.form.get(name, ""):
+                    form[name] = request.form[name]
+                # blank and not cleared: keep the current value
             elif name in request.form:
                 form[name] = request.form[name]
         clean, errors = confstore.validate(form)
@@ -258,6 +270,7 @@ def create_app(settings=None):
             flash("Nothing saved - please fix the highlighted fields.", "error")
             shown = {**confstore.load(s.conf_path)["values"], **form}
             return render_template("settings.html", **_settings_context(shown, errors)), 400
+        old = confstore.load(s.conf_path)["values"]
         try:
             changed = confstore.save(s.conf_path, clean, backups)
         except confstore.ConfError as exc:
@@ -265,6 +278,10 @@ def create_app(settings=None):
             return redirect(url_for("settings_page"))
         flash("Settings saved. Press Apply to restart the gateway with them." if changed
               else "No changes to save.", "ok" if changed else "info")
+        risky = [k for k in confstore.RISKY if k in clean and clean[k] != old.get(k)]
+        if risky:
+            flash("Check " + ", ".join(risky) + " carefully before applying: a wrong value can stop the "
+                  "gateway from starting or from reaching its database. The previous pygw_conf.py is backed up.", "info")
         return redirect(url_for("settings_page"))
 
     # ------------------------------------------------------------------ logs
