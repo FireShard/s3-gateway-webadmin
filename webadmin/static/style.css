@@ -45,7 +45,7 @@ main{padding:2rem 2.25rem 6rem;max-width:68rem;width:100%;min-width:0}
 .page-head p{color:var(--muted);margin:.25rem 0 0}
 
 /* ---- panels ---- */
-.panel{background:var(--surface);border:1px solid var(--line);border-radius:6px;margin-bottom:1.25rem}
+.panel{min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:6px;margin-bottom:1.25rem}
 .panel>header{padding:1rem 1.25rem;border-bottom:1px solid var(--line-soft)}
 .panel>header p{color:var(--muted);margin:0;font-size:.9375rem}
 .panel .body{padding:1.25rem}
@@ -118,9 +118,12 @@ td.acts form{display:inline}
 
 /* ---- logs ---- */
 .log-tools select,.log-tools input{height:2.5rem}
-.log-tools{display:grid;grid-template-columns:minmax(8rem,1fr) minmax(13rem,1.7fr) 6.5rem 7rem minmax(10rem,2fr);gap:.75rem;align-items:end;padding:1rem 1.25rem;border-bottom:1px solid var(--line-soft)}
-.log-sub{display:flex;gap:1rem;align-items:center;padding:.6rem 1.25rem;border-bottom:1px solid var(--line-soft);font-size:.9375rem;color:var(--muted)}
-.log-sub .grow{flex:1}
+.log-tools{display:flex;flex-wrap:wrap;gap:.75rem;align-items:flex-end;padding:1rem 1.25rem;border-bottom:1px solid var(--line-soft)}
+.log-tools>div{flex:1 1 7rem;min-width:0}
+.log-tools>div.wide{flex:2 1 12rem}
+.log-tools>div.narrow{flex:0 1 7.5rem}
+.log-sub{display:flex;flex-wrap:wrap;gap:.5rem 1rem;align-items:center;padding:.6rem 1.25rem;border-bottom:1px solid var(--line-soft);font-size:.9375rem;color:var(--muted)}
+.log-sub .grow{flex:1 1 14rem;min-width:0}
 .log-sub label{display:flex;gap:.4rem;align-items:center;margin:0;font-weight:400}
 .log-sub input{width:auto}
 .term{background:var(--night);color:#d4dcea;font:400 .8125rem/1.55 var(--mono);height:62vh;min-height:20rem;overflow:auto;padding:.75rem 0;border-radius:0 0 6px 6px}
@@ -159,7 +162,6 @@ td.acts form{display:inline}
   main{padding:1.25rem 1rem 7rem}
   .strip{grid-template-columns:1fr}.strip>div+div{border-left:0;border-top:1px solid var(--line)}
   .form-row{grid-template-columns:1fr 1fr}.form-row button{grid-column:1/-1}
-  .log-tools{grid-template-columns:1fr 1fr}
   .pending{left:0;padding:.7rem 1rem}
 }
 @media (max-width:520px){.brand div{display:none}.brand{padding:0 .5rem 0 1rem}.side nav a{padding:.6rem .6rem}.toolbar{flex-wrap:wrap}.toolbar h2{flex:1 0 100%}.toolbar input[type=search]{max-width:none;flex:1}}

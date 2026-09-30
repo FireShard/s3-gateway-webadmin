@@ -6,12 +6,12 @@
   <div class="log-tools">
     <div><label for="kind">Log</label>
       <select id="kind">{% for k, n in [('gateway','Gateway'),('mqtt','MQTT'),('error','Errors')] %}<option value="{{ k }}" {{ 'selected' if k == kind }}>{{ n }}</option>{% endfor %}</select></div>
-    <div><label for="file">File</label><select id="file"></select></div>
-    <div><label for="lines">Lines</label>
+    <div class="wide"><label for="file">File</label><select id="file"></select></div>
+    <div class="narrow"><label for="lines">Lines</label>
       <select id="lines"><option>100</option><option selected>200</option><option>500</option><option>1000</option><option>2000</option></select></div>
-    <div><label for="level">Level</label>
+    <div class="narrow"><label for="level">Level</label>
       <select id="level"><option value="">All</option>{% for l in levels %}<option>{{ l }}</option>{% endfor %}</select></div>
-    <div><label for="q">Search</label><input id="q" type="search" placeholder="Find text in these lines"></div>
+    <div class="wide"><label for="q">Search</label><input id="q" type="search" placeholder="Find text in these lines"></div>
   </div>
   <div class="log-sub">
     <span class="grow" id="meta">Loading</span>
