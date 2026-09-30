@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Logs{% endblock %}
+{% block body %}
+<h1>Logs</h1>
+<section class="card">
+  <div class="row wrap">
+    <label>Log
+      <select id="kind">{% for k in ['gateway','mqtt','error'] %}<option value="{{ k }}" {{ 'selected' if k == kind }}>{{ k }}</option>{% endfor %}</select>
+    </label>
+    <label>File <select id="file"></select></label>
+    <label>Lines
+      <select id="lines"><option>100</option><option selected>200</option><option>500</option><option>1000</option><option>2000</option></select>
+    </label>
+    <label>Level
+      <select id="level"><option value="">all</option>{% for l in levels %}<option>{{ l }}</option>{% endfor %}</select>
+    </label>
+    <label class="grow">Search <input id="q" type="search" placeholder="text to find…"></label>
+    <label class="chk"><input type="checkbox" id="auto" checked> Auto-refresh</label>
+    <a class="btn" id="dl" href="#">Download</a>
+  </div>
+  <p class="muted" id="meta"></p>
+  <pre id="log" class="out tall">Loading…</pre>
+</section>
+<script>
+const FILES = {{ files|tojson }};
+const $ = id => document.getElementById(id);
+const kind = $('kind'), file = $('file'), pre = $('log');
+function fillFiles() {
+  file.innerHTML = '';
+  (FILES[kind.value] || []).forEach(n => file.add(new Option(n === kind.value + '.log' ? n + ' (current)' : n, n)));
+  if (!file.options.length) { file.add(new Option('(no files found)', '')); }
+}
+async function load() {
+  if (!file.value) { pre.textContent = 'No log file found in the log directory yet.'; $('meta').textContent = ''; return; }
+  const p = new URLSearchParams({file: file.value, lines: $('lines').value, q: $('q').value, level: $('level').value});
+  $('dl').href = '{{ url_for("log_download") }}?file=' + encodeURIComponent(file.value);
+  try {
+    const r = await fetch('{{ url_for("api_logs") }}?' + p);
+    if (r.status === 401) { location.href = '{{ url_for("login") }}'; return; }
+    const d = await r.json();
+    if (d.error) { pre.textContent = d.error; return; }
+    const atBottom = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 30;
+    pre.textContent = d.lines.length ? d.lines.join('\n') : '(no matching lines)';
+    if (atBottom) pre.scrollTop = pre.scrollHeight;
+    $('meta').textContent = 'Showing ' + d.lines.length + ' of ' + d.matched + ' matching lines · file size ' + (d.size/1024).toFixed(1) + ' KB · updated ' + new Date().toLocaleTimeString();
+  } catch (e) { $('meta').textContent = 'Could not load log.'; }
+}
+kind.onchange = () => { fillFiles(); load(); };
+['file','lines','level'].forEach(i => $(i).onchange = load);
+let t; $('q').oninput = () => { clearTimeout(t); t = setTimeout(load, 300); };
+setInterval(() => { if ($('auto').checked && file.selectedIndex <= 0) load(); }, 5000);
+fillFiles(); load().then(() => pre.scrollTop = pre.scrollHeight);
+</script>
+{% endblock %}

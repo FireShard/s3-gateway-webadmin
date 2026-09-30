@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Overview{% endblock %}
+{% block body %}
+<h1>Overview</h1>
+<div class="grid">
+  <section class="card"><h2>Gateway service</h2>
+    <p class="big" id="svc"><span class="dot {{ 'ok' if service == 'active' else 'bad' if service else '' }}"></span>{{ service or 'unknown' }}</p>
+  </section>
+  <section class="card"><h2>Devices in list</h2><p class="big">{{ node_count }}</p></section>
+  <section class="card"><h2>Config state</h2>
+    <p class="big" id="pend">
+      {% if pending is sameas true %}Changes pending
+      {% elif pending is sameas false %}Applied{% else %}Unknown{% endif %}
+    </p>
+    <p class="muted">{% if applied_at %}Last apply from this site: {{ applied_at }}{% else %}No apply recorded from this site yet.{% endif %}</p>
+  </section>
+</div>
+
+<section class="card" id="apply">
+  <h2>Apply changes</h2>
+  <p>Runs <code>s3-gateway-dbup</code>: validates <code>samplelist.csv</code> and <code>pygw_conf.py</code>, backs up PostgreSQL and the current production files,
+  syncs the database, and <b>restarts the gateway service</b>. Devices removed from the list are removed from the database.</p>
+  <form method="post" action="{{ url_for('apply_changes') }}" onsubmit="return confirm('This restarts the gateway and polling is interrupted briefly. Continue?');">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <button class="primary" id="applybtn" {{ 'disabled' if apply.running }}>Apply now</button>
+  </form>
+  <pre id="applyout" class="out" {{ '' if apply.output else 'hidden' }}>{{ apply.output }}</pre>
+  <p id="applyres" class="muted"></p>
+</section>
+<script>
+const out = document.getElementById('applyout'), btn = document.getElementById('applybtn'), res = document.getElementById('applyres');
+async function poll() {
+  try {
+    const r = await fetch('{{ url_for("apply_status") }}');
+    if (!r.ok) return;
+    const d = await r.json();
+    if (d.output) { out.hidden = false; out.textContent = d.output; out.scrollTop = out.scrollHeight; }
+    btn.disabled = d.running;
+    res.textContent = d.running ? 'Running…' : (d.rc === null ? '' : (d.rc === 0 ? 'Finished successfully.' : 'Failed (exit code ' + d.rc + '). See output above.'));
+    document.getElementById('pend').textContent = d.pending === true ? 'Changes pending' : d.pending === false ? 'Applied' : 'Unknown';
+    if (d.running) setTimeout(poll, 1500);
+  } catch (e) {}
+}
+{% if apply.running %}poll();{% endif %}
+</script>
+{% endblock %}

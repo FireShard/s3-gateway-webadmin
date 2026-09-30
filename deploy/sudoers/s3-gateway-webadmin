@@ -1,0 +1,3 @@
+# Lets the web admin run the same DBUP command an operator would run by hand.
+# __OPERATOR_USER__ is replaced by scripts/install-webadmin.sh.
+__OPERATOR_USER__ ALL=(root) NOPASSWD: /usr/local/sbin/s3-gateway-dbup

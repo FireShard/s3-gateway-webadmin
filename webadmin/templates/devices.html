@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Devices{% endblock %}
+{% block body %}
+<h1>Devices <span class="muted">samplelist.csv · {{ rows|length }} nodes</span></h1>
+{% include "_pending.html" %}
+
+<section class="card">
+  <h2>Add a device</h2>
+  <form method="post" action="{{ url_for('device_add') }}" class="inline">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <label>Pole node <input name="pole_node" placeholder="R1-2" required maxlength="32"></label>
+    <label>Node ID (4 hex) <input name="node" placeholder="8EED" required maxlength="4" pattern="[0-9A-Fa-f]{4}"></label>
+    <label>PAN ID <input name="pan_id" value="{{ default_pan }}" required maxlength="4" pattern="[0-9A-Fa-f]{1,4}"></label>
+    <label>Channel <input name="channel" type="number" min="11" max="26" value="{{ default_channel }}" required></label>
+    <button class="primary">Add</button>
+  </form>
+  <details><summary>Add many at once</summary>
+    <form method="post" action="{{ url_for('device_bulk') }}">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <p class="muted">One per line: <code>pole,node</code> (PAN/channel default to {{ default_pan }} / {{ default_channel }}) or <code>pole,node,pan,channel</code>. All-or-nothing.</p>
+      <textarea name="bulk" rows="6" placeholder="R1-2,8EED&#10;R1-3,8EEE,1001,20"></textarea>
+      <button class="primary">Add all</button>
+    </form>
+  </details>
+</section>
+
+<section class="card">
+  <div class="row"><h2>Current list</h2>
+    <input id="filter" type="search" placeholder="Filter…" class="grow">
+    <a class="btn" href="{{ url_for('device_download') }}">Download CSV</a>
+  </div>
+  <div class="scroll"><table id="tbl">
+    <thead><tr><th>Pole node</th><th>Node ID</th><th>PAN ID</th><th>Channel</th><th></th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+    <tr>
+      <form method="post" action="{{ url_for('device_edit') }}" id="f{{ loop.index }}">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <input type="hidden" name="original_node" value="{{ r.node }}">
+      </form>
+      <td><input form="f{{ loop.index }}" name="pole_node" value="{{ r.pole_node }}" maxlength="32" required></td>
+      <td><input form="f{{ loop.index }}" name="node" value="{{ r.node }}" maxlength="4" pattern="[0-9A-Fa-f]{4}" required class="s"></td>
+      <td><input form="f{{ loop.index }}" name="pan_id" value="{{ r.pan_id }}" maxlength="4" pattern="[0-9A-Fa-f]{1,4}" required class="s"></td>
+      <td><input form="f{{ loop.index }}" name="channel" type="number" min="11" max="26" value="{{ r.channel }}" required class="s"></td>
+      <td class="acts">
+        <button form="f{{ loop.index }}" class="btn">Save</button>
+        <form method="post" action="{{ url_for('device_delete') }}" style="display:inline" onsubmit="return confirm('Remove {{ r.pole_node }} ({{ r.node }})? It will be deleted from the database on Apply.');">
+          <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="node" value="{{ r.node }}">
+          <button class="btn danger">Remove</button>
+        </form>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="5" class="muted">No devices yet.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</section>
+
+<section class="card">
+  <details><summary>Replace the whole list from a CSV file</summary>
+    <form method="post" action="{{ url_for('device_replace') }}" enctype="multipart/form-data" onsubmit="return confirm('This replaces the entire node list. Devices not in the file will be removed on Apply. Continue?');">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <p class="muted">Header must be exactly <code>pole_node,node,pan_id,channel</code>. The previous file is backed up automatically.</p>
+      <input type="file" name="file" accept=".csv,text/csv" required>
+      <button class="btn danger">Replace list</button>
+    </form>
+  </details>
+</section>
+<script>
+document.getElementById('filter').addEventListener('input', e => {
+  const q = e.target.value.toLowerCase();
+  document.querySelectorAll('#tbl tbody tr').forEach(tr => {
+    const t = [...tr.querySelectorAll('input:not([type=hidden])')].map(i => i.value).join(' ').toLowerCase();
+    tr.hidden = q && !t.includes(q);
+  });
+});
+</script>
+{% endblock %}

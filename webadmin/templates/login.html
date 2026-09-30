@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Login{% endblock %}
+{% block body %}
+<section class="card narrow">
+  <h1>Gateway login</h1>
+  <form method="post">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <label>Password <input type="password" name="password" autofocus required></label>
+    <button class="primary">Log in</button>
+  </form>
+</section>
+{% endblock %}

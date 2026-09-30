@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Settings{% endblock %}
+{% block body %}
+<h1>Gateway settings <span class="muted">pygw_conf.py</span></h1>
+{% include "_pending.html" %}
+{% if warning %}<div class="banner warn">{{ warning }}</div>{% endif %}
+<form method="post">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  {% for gid, gtitle in groups %}
+  <section class="card"><h2>{{ gtitle }}</h2>
+    {% for name, (label, help, parser, group) in fields.items() if group == gid %}
+    <div class="field {{ 'err' if name in errors }}">
+      <label>{{ label }}</label>
+      {% if group == 'gateway' %}
+        {% set v = values[name] or ['', '', ''] %}
+        <div class="triple">
+          <input name="{{ name }}__0" value="{{ v[0] }}" placeholder="Node ID" maxlength="4" title="Gateway node ID">
+          <input name="{{ name }}__1" value="{{ v[1] }}" placeholder="PAN ID" maxlength="4" title="PAN ID (hex)">
+          <input name="{{ name }}__2" value="{{ v[2] }}" placeholder="Channel" type="number" min="11" max="26" title="Channel 11-26">
+        </div>
+      {% elif group == 'times' %}
+        <input name="{{ name }}" value="{{ values[name] }}" type="time" required>
+      {% else %}
+        <input name="{{ name }}" value="{{ values[name] }}" {% if name == 'minimum_power' %}type="number" step="0.1"{% else %}type="number"{% endif %} required>
+      {% endif %}
+      <small>{{ errors[name] if name in errors else help }}</small>
+    </div>
+    {% endfor %}
+  </section>
+  {% endfor %}
+  <button class="primary">Save settings</button>
+  <span class="muted">Saving writes <code>pygw_conf.py</code> (previous version is backed up). Changes take effect after Apply.</span>
+</form>
+
+{% if readonly %}
+<section class="card"><h2>Other values <span class="muted">(read-only)</span></h2>
+  <table>{% for k, v in readonly.items() %}<tr><td><code>{{ k }}</code></td><td>{{ v }}</td></tr>{% endfor %}</table>
+</section>
+{% endif %}
+{% endblock %}

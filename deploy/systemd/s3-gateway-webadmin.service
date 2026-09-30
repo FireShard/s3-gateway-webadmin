@@ -1,0 +1,23 @@
+[Unit]
+Description=S3 Gateway local web admin
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Runs as the operator account so it can edit ~/S3Gateway/samplelist.csv and
+# pygw_conf.py. The installer replaces __OPERATOR_USER__ and __OPERATOR_DIR__.
+User=__OPERATOR_USER__
+WorkingDirectory=/opt/s3-gateway/app
+EnvironmentFile=/etc/s3-gateway/webadmin.env
+Environment=S3_OPERATOR_DIR=__OPERATOR_DIR__
+ExecStart=/opt/s3-gateway/app/.venv/bin/python -m webadmin
+Restart=on-failure
+RestartSec=5
+UMask=0027
+NoNewPrivileges=false
+PrivateTmp=true
+ProtectHome=false
+
+[Install]
+WantedBy=multi-user.target

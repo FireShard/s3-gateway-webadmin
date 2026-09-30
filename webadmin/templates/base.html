@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}{% endblock %} · S3 Gateway</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+{% if session.get('auth') or request.endpoint not in ('login',) %}
+<header class="top">
+  <div class="brand">S3 Gateway</div>
+  <nav>
+    {% for ep, label in [('overview','Overview'),('devices','Devices'),('settings_page','Settings'),('logs','Logs')] %}
+    <a href="{{ url_for(ep) }}" class="{{ 'active' if request.endpoint == ep else '' }}">{{ label }}</a>
+    {% endfor %}
+  </nav>
+  <form method="post" action="{{ url_for('logout') }}"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button class="link">Log out</button></form>
+</header>
+{% endif %}
+<main>
+  {% with msgs = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in msgs %}<div class="flash {{ cat }}">{{ msg }}</div>{% endfor %}
+  {% endwith %}
+  {% block body %}{% endblock %}
+</main>
+</body>
+</html>

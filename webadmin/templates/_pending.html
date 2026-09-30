@@ -1,0 +1,3 @@
+{% if pending is sameas true %}
+<div class="banner warn">Saved changes have <b>not been applied</b> yet. <a href="{{ url_for('overview') }}#apply">Go to Apply</a></div>
+{% endif %}
