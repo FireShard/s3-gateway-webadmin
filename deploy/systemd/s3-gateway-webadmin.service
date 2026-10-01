@@ -10,6 +10,9 @@ Type=simple
 User=__OPERATOR_USER__
 WorkingDirectory=/opt/s3-gateway/app
 EnvironmentFile=/etc/s3-gateway/webadmin.env
+# Lets the web admin read GATEWAY_ID (shown under the logo) from the gateway's
+# .env, which is root:s3gw 640. Only that one value is read and displayed.
+SupplementaryGroups=s3gw
 Environment=S3_OPERATOR_DIR=__OPERATOR_DIR__
 ExecStart=/opt/s3-gateway/app/.venv/bin/python -m webadmin
 Restart=on-failure

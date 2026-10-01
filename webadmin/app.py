@@ -9,7 +9,7 @@ from flask import (Flask, Response, abort, flash, jsonify, redirect, render_temp
                    request, send_file, session, url_for)
 from werkzeug.security import check_password_hash
 
-from . import confstore, csvstore, logview, serialtool
+from . import confstore, csvstore, envfile, logview, serialtool
 from .applier import Applier, service_state
 from .settings import Settings
 
@@ -61,7 +61,8 @@ def create_app(settings=None):
     @app.context_processor
     def shared_context():
         if session.get("auth") or not s.password_hash:
-            return {"pending": applier.pending()}
+            return {"pending": applier.pending(),
+                    "gateway_id": envfile.read_value(s.env_file, "GATEWAY_ID")}
         return {}
 
     @app.before_request

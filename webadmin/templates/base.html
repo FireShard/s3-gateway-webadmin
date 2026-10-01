@@ -13,7 +13,7 @@
 {% else %}
 <div class="shell">
   <aside class="side">
-    <div class="brand">{{ logo }}<div>S3 Gateway</div></div>
+    <div class="brand">{{ logo }}<div class="brand-text"><div class="brand-name">S3 Gateway</div>{% if gateway_id %}<div class="brand-id" title="Gateway ID: {{ gateway_id }}">{{ gateway_id }}</div>{% endif %}</div></div>
     <nav aria-label="Main">
       <a href="{{ url_for('overview') }}" class="{{ 'active' if request.endpoint == 'overview' }}"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg><span>Overview</span></a>
       <a href="{{ url_for('devices') }}" class="{{ 'active' if request.endpoint == 'devices' }}"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.5"/><path d="M7.5 7.5a6.4 6.4 0 0 0 0 9M16.5 7.5a6.4 6.4 0 0 1 0 9M4.5 4.5a10.6 10.6 0 0 0 0 15M19.5 4.5a10.6 10.6 0 0 1 0 15"/></svg><span>Devices</span></a>

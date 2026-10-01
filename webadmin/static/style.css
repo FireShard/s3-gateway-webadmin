@@ -32,6 +32,9 @@ code{font:500 .85em var(--mono);background:var(--line-soft);padding:.1em .35em;b
 .side{background:var(--dusk);color:#c9d3e6;padding:1.25rem 0;display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
 .brand{display:flex;align-items:center;gap:.7rem;padding:0 1.25rem 1.5rem;color:#fff;font-weight:600;font-size:1.125rem}
 .brand svg{flex:none}
+.side .brand{align-items:flex-start}
+.brand-text{min-width:0}
+.brand-id{margin-top:.15rem;font:400 .8125rem/1.3 var(--mono);color:#9fb0cc;letter-spacing:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .side nav{display:flex;flex-direction:column}
 .side nav a{display:flex;align-items:center;gap:.75rem;padding:.65rem 1.25rem;color:#c9d3e6;text-decoration:none;border-left:3px solid transparent;font-weight:500}
 .side nav a:hover{background:var(--dusk-2);color:#fff}

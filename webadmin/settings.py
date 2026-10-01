@@ -20,6 +20,7 @@ class Settings:
     dbup_command: list
     service_name: str
     allow_noauth: bool
+    env_file: Path = Path("/opt/s3-gateway/app/.env")   # read-only: GATEWAY_ID shown under the logo
     # Serial page. Node commands go through the gateway's own REST server; the
     # direct console is off unless the installer enables it.
     gateway_api: str = "http://127.0.0.1:9090"
@@ -51,6 +52,7 @@ class Settings:
             dbup_command=dbup.split(),
             service_name=service,
             allow_noauth=_bool("S3_WEBADMIN_ALLOW_NOAUTH"),
+            env_file=Path(os.getenv("S3_GATEWAY_ENV_FILE", "/opt/s3-gateway/app/.env")),
             gateway_api=os.getenv("S3_GATEWAY_API", "http://127.0.0.1:9090").rstrip("/"),
             serial_console=_bool("S3_SERIAL_CONSOLE"),
             serial_port=os.getenv("S3_SERIAL_PORT", "auto").strip() or "auto",
