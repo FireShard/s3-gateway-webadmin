@@ -123,6 +123,22 @@ On the Overview page, **Gateway service** should show a green `active`.
 
 Repeat Steps 1 and 2 with the new source folder. Your password, port and all site files are kept, and the installer restarts the website for you.
 
+### Turn on the direct serial console (optional)
+
+The **Serial** page always works for sending commands to lights (Poll, Blink, Lamp on/off and so on). Its second tab, the **Direct console**, types raw commands to the gateway radio like `minicom`. To use the USB radio the website has to stop the gateway service for a while, so it is **off until you turn it on**:
+
+```bash
+sudo env S3_ENABLE_SERIAL_CONSOLE=1 ./scripts/install-webadmin.sh
+```
+
+This:
+
+* adds one more sudo permission, `/etc/sudoers.d/s3-gateway-webadmin-serial`, which allows **only** `systemctl stop s3-zigbee-gateway` and `systemctl start s3-zigbee-gateway`;
+* adds the operator account (default `pi`) to the `dialout` group, which is needed to open the USB port;
+* sets `S3_SERIAL_CONSOLE=1` (and the stop/start commands) in `/etc/s3-gateway/webadmin.env`, then restarts the website.
+
+To turn it off again run the same command with `S3_ENABLE_SERIAL_CONSOLE=0`. Running the installer later without this setting leaves it as it is.
+
 ### Stop or disable the site
 
 ```bash
@@ -138,6 +154,7 @@ This does not affect the gateway itself; it keeps polling and reporting as befor
 sudo systemctl disable --now s3-gateway-webadmin
 sudo rm /etc/systemd/system/s3-gateway-webadmin.service
 sudo rm /etc/sudoers.d/s3-gateway-webadmin
+sudo rm -f /etc/sudoers.d/s3-gateway-webadmin-serial   # only exists if you turned on the serial console
 sudo rm /etc/s3-gateway/webadmin.env
 sudo systemctl daemon-reload
 ```
@@ -185,6 +202,7 @@ The website stops waiting after 15 minutes (`S3_WEBADMIN_APPLY_TIMEOUT`) and sho
 | Site configuration (password hash, port) | `/etc/s3-gateway/webadmin.env` (root only) |
 | Systemd service | `/etc/systemd/system/s3-gateway-webadmin.service` |
 | Sudo permission | `/etc/sudoers.d/s3-gateway-webadmin` (allows only `s3-gateway-dbup`) |
+| Optional sudo permission (serial console only) | `/etc/sudoers.d/s3-gateway-webadmin-serial` (allows only stopping and starting the gateway service) |
 
 The installer is safe to run again: it keeps the existing configuration and password unless you cleared the hash.
 

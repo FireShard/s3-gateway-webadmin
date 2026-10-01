@@ -12,10 +12,11 @@ This guide shows how to use the website day to day. Not installed yet? See [INST
 4. [Devices](#4-devices)
 5. [Settings](#5-settings)
 6. [Logs](#6-logs)
-7. [Apply your changes](#7-apply-your-changes)
-8. [Using a phone](#8-using-a-phone)
-9. [Backups and undoing a mistake](#9-backups-and-undoing-a-mistake)
-10. [Messages you may see](#10-messages-you-may-see)
+7. [Serial](#7-serial)
+8. [Apply your changes](#8-apply-your-changes)
+9. [Using a phone](#9-using-a-phone)
+10. [Backups and undoing a mistake](#10-backups-and-undoing-a-mistake)
+11. [Messages you may see](#11-messages-you-may-see)
 
 ---
 
@@ -58,13 +59,13 @@ The first page after login. It answers: *is the gateway running, and is it using
 | **Devices in list** | Number of nodes in `samplelist.csv`. |
 | **Saved changes** | `Applied` (green): the gateway is using everything you saved. `Not applied` (amber): you have saved changes waiting. `Unknown`: nothing has been applied from this website yet. |
 
-The **Apply changes** panel runs the update and shows its live output (see [section 7](#7-apply-your-changes)).
+The **Apply changes** panel runs the update and shows its live output (see [section 8](#8-apply-your-changes)).
 
 When you have unapplied changes, the status turns amber:
 
 ![Overview with unapplied changes](images/11-overview-pending.png)
 
-The left menu has four pages: **Overview**, **Devices**, **Settings** and **Logs**. The gateway ID is shown under the logo so you always know which site you are on.
+The left menu has five pages: **Overview**, **Devices**, **Serial**, **Settings** and **Logs**. The gateway ID is shown under the logo so you always know which site you are on.
 
 ---
 
@@ -159,7 +160,7 @@ Change what you need, then click **Save settings** at the bottom of the page.
 
 ![Settings saved](images/10-settings-saved.png)
 
-The gateway does not use the new values until you [apply](#7-apply-your-changes). The previous `pygw_conf.py` is backed up on every save.
+The gateway does not use the new values until you [apply](#8-apply-your-changes). The previous `pygw_conf.py` is backed up on every save.
 
 ### If a value is not allowed
 
@@ -212,7 +213,73 @@ The line above the log tells you how many lines matched, the file size, and when
 
 ---
 
-## 7. Apply your changes
+## 7. Serial
+
+Use this page to send a command to one or more street lights straight away: check that a light answers, make it blink so you can find the pole, or switch it on and off. It does **not** use Save and Apply. Commands go out immediately.
+
+It has two tabs. Most people only need **Node controls**.
+
+### Node controls
+
+![Serial page, node controls](images/15-serial-nodes.png)
+
+1. **Tick the lights** you want. Use **Filter devices** to find them, **Select shown** to tick everything the filter shows, and **Clear** to start again. A light that is not in your list can be typed into **Other node IDs** (4 characters, like `8EED`).
+2. Check the heading says the right number: **Send to 3 devices**.
+3. Press a button.
+
+![Serial page, buttons and sent list](images/15b-serial-send.png)
+
+| Button | What it does |
+|---|---|
+| **Poll** | Asks the light to report in. Use it to check a light is alive. |
+| **Blink** | Makes the light flash so you can spot the pole. |
+| **Lamp on / Lamp off** | Switches the lamp on or off. |
+| **Dim** | Dims the lamp. |
+| **Dim to level** | Dims to the level code you pick (0 to 9). What each number means is not documented in the gateway software, so try it on one lamp first. |
+| **Manual override on / off** | Takes a light out of (or back into) the gateway's automatic schedule. |
+
+Things to know:
+
+* The page only tells you the **gateway accepted** the request ("Sent to the gateway"). What the light replies appears in the [Logs](#6-logs) page a moment later.
+* Switching lamps or overrides for **5 or more** lights asks you to confirm first.
+* The gateway keeps running its own daily schedule. In the inactive hours it switches off any lamp it finds lit, so a lamp you switch on then may not stay on unless **Manual override on** is used.
+* If you see *The gateway is not answering on its control port*, the gateway service is stopped. Check **Overview**.
+
+### Direct console
+
+For technicians. It works like the `minicom` program: you type a raw command such as `+DS` and read exactly what the gateway's radio answers.
+
+The gateway keeps the USB radio to itself while it runs. To use the console, the website therefore **stops the gateway** and starts it again when you finish. Polling and data collection pause in the meantime.
+
+The console is **switched off** unless it was enabled when the website was installed. If you see "The direct console is turned off", ask whoever installed it, or see [INSTALLATION.md](INSTALLATION.md#turn-on-the-direct-serial-console-optional).
+
+![Direct console, closed](images/16-serial-console-closed.png)
+
+1. Open the **Direct console** tab.
+2. Press **Pause gateway and open** and confirm. The status turns green: *Open on /dev/ttyUSB0*.
+3. Type a command in the box at the bottom and press **Enter**. Your lines are blue and start with `>`; the gateway's answers start with `<`. The up and down arrow keys bring back earlier commands.
+4. When you are done, press **Close**. The gateway starts again by itself.
+
+![Direct console, open](images/17-serial-console-open.png)
+
+The quick buttons under the box:
+
+| Button | What it does |
+|---|---|
+| **Identify** `+DS` | Asks the gateway radio who it is (serial number, node ID, PAN ID, firmware). |
+| **Configure gateway 1 / 2** | Types the `+ZC` set-up command from your Settings (`first_GW_data` / `second_GW_data`) into the box. Check it, then press Enter. |
+| **Reset gateway node** `+DR` | Resets the radio, the same way the gateway does when it finds the radio hung. Asks first. |
+
+Safety nets:
+
+* If nobody uses the console for **10 minutes**, it closes itself and starts the gateway again.
+* If the website is restarted while the gateway is paused, it starts the gateway again.
+* **Download** saves the lines on screen as a text file for support. **Clear** empties the screen.
+* If the website says *The gateway is using the serial port* and you did not choose to pause it, nothing was changed.
+
+---
+
+## 8. Apply your changes
 
 When you are happy with your saved changes:
 
@@ -238,7 +305,7 @@ Good to know:
 
 ---
 
-## 8. Using a phone
+## 9. Using a phone
 
 The website adapts to small screens, so you can check the gateway from a phone while standing at the pole.
 
@@ -246,7 +313,7 @@ The website adapts to small screens, so you can check the gateway from a phone w
 
 ---
 
-## 9. Backups and undoing a mistake
+## 10. Backups and undoing a mistake
 
 Every save of the node list or settings first copies the previous file to:
 
@@ -270,7 +337,7 @@ For the node list you can also use **Download CSV** now and **Replace the whole 
 
 ---
 
-## 10. Messages you may see
+## 11. Messages you may see
 
 | Message | Meaning / what to do |
 |---|---|
@@ -285,6 +352,9 @@ For the node list you can also use **Download CSV** now and **Replace the whole 
 | *Upload rejected: CSV header must be exactly...* | The first line of your CSV must be `pole_node,node,pan_id,channel`. |
 | *Nothing saved - please fix the highlighted fields.* | A setting has an invalid value. See the red field. |
 | *No changes to save.* | You pressed Save without changing anything. |
+| *The gateway is not answering on its control port...* | Serial page: the gateway service is stopped (or paused by the direct console). Check Overview, or close the console. |
+| *Could not pause the gateway: ... sudo rule* | The direct console was not fully installed. See Installation, "Turn on the direct serial console". |
+| *Permission denied on the serial port* | The website's account is not in the `dialout` group. Re-run the installer with the serial option and restart. |
 | *An apply is already running.* | Wait for the current apply to finish. |
 | *Apply failed (exit code N)* | Read the output box for the reason. Fix it and apply again. |
 | *Too many attempts. Try again in Ns.* | Wait for the lockout to end. |

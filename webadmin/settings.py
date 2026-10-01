@@ -1,6 +1,6 @@
 """Runtime settings for the web admin, read from environment variables."""
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 
@@ -20,6 +20,14 @@ class Settings:
     dbup_command: list
     service_name: str
     allow_noauth: bool
+    # Serial page. Node commands go through the gateway's own REST server; the
+    # direct console is off unless the installer enables it.
+    gateway_api: str = "http://127.0.0.1:9090"
+    serial_console: bool = False
+    serial_port: str = "auto"          # "auto" = USB serial ports found on this machine
+    serial_idle_seconds: int = 600
+    serial_pause_command: list = field(default_factory=list)
+    serial_resume_command: list = field(default_factory=list)
 
     @classmethod
     def from_env(cls):
@@ -29,6 +37,9 @@ class Settings:
         log_dir = Path(os.getenv("S3_LOG_DIR", str(operator_dir / "log")))
         state_dir = Path(os.getenv("S3_WEBADMIN_STATE_DIR", str(operator_dir / ".webadmin")))
         dbup = os.getenv("S3_DBUP_COMMAND", "sudo -n /usr/local/sbin/s3-gateway-dbup")
+        service = os.getenv("S3_SERVICE_NAME", "s3-zigbee-gateway")
+        pause = os.getenv("S3_SERIAL_PAUSE_COMMAND", f"sudo -n /usr/bin/systemctl stop {service}")
+        resume = os.getenv("S3_SERIAL_RESUME_COMMAND", f"sudo -n /usr/bin/systemctl start {service}")
         return cls(
             operator_dir=operator_dir,
             log_dir=log_dir,
@@ -38,8 +49,14 @@ class Settings:
             password_hash=os.getenv("S3_WEBADMIN_PASSWORD_HASH", ""),
             secret_key=os.getenv("S3_WEBADMIN_SECRET_KEY", ""),
             dbup_command=dbup.split(),
-            service_name=os.getenv("S3_SERVICE_NAME", "s3-zigbee-gateway"),
+            service_name=service,
             allow_noauth=_bool("S3_WEBADMIN_ALLOW_NOAUTH"),
+            gateway_api=os.getenv("S3_GATEWAY_API", "http://127.0.0.1:9090").rstrip("/"),
+            serial_console=_bool("S3_SERIAL_CONSOLE"),
+            serial_port=os.getenv("S3_SERIAL_PORT", "auto").strip() or "auto",
+            serial_idle_seconds=max(60, int(os.getenv("S3_SERIAL_IDLE_SECONDS", "600"))),
+            serial_pause_command=pause.split(),
+            serial_resume_command=resume.split(),
         )
 
     @property

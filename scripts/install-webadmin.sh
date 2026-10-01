@@ -16,6 +16,8 @@ OPERATOR_USER="${S3_OPERATOR_USER:-${SUDO_USER:-pi}}"
 if [ "$OPERATOR_USER" = "root" ]; then OPERATOR_USER="pi"; fi
 OPERATOR_HOME="${S3_OPERATOR_HOME:-$(getent passwd "$OPERATOR_USER" | cut -d: -f6)}"
 OPERATOR_DIR="${S3_OPERATOR_DIR:-$OPERATOR_HOME/S3Gateway}"
+# Direct serial console (Serial page). Unset = leave as is, 1 = enable, 0 = disable.
+ENABLE_SERIAL="${S3_ENABLE_SERIAL_CONSOLE:-}"
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 SOURCE_DIR="$(dirname "$SCRIPT_DIR")"
 
@@ -31,6 +33,15 @@ echo "Installing web admin dependencies..."
 
 runuser -u "$OPERATOR_USER" -- "$TARGET_DIR/.venv/bin/python" -c "import sys; sys.path.insert(0,'$TARGET_DIR'); import webadmin.app" \
     || { echo "Operator account '$OPERATOR_USER' cannot import the webadmin package (check permissions on $TARGET_DIR)." >&2; exit 1; }
+
+
+set_env() {  # set_env KEY VALUE - replace or append KEY=VALUE in the web admin env file
+    if grep -q "^$1=" "$ENV_FILE"; then
+        sed -i "s|^$1=.*|$1=$2|" "$ENV_FILE"
+    else
+        printf '%s=%s\n' "$1" "$2" >> "$ENV_FILE"
+    fi
+}
 
 install -d -o root -g root -m 755 "$ENV_DIR"
 if [ ! -f "$ENV_FILE" ]; then
@@ -54,6 +65,31 @@ visudo -cf "$TMP_SUDOERS" >/dev/null || { rm -f "$TMP_SUDOERS"; echo "Generated 
 install -o root -g root -m 440 "$TMP_SUDOERS" /etc/sudoers.d/s3-gateway-webadmin
 rm -f "$TMP_SUDOERS"
 
+# Optional sudo rule + settings for the direct serial console (pause/resume the gateway service only)
+SERIAL_SUDOERS="/etc/sudoers.d/s3-gateway-webadmin-serial"
+SERVICE_NAME="$(grep '^S3_SERVICE_NAME=' "$ENV_FILE" | cut -d= -f2 || true)"
+SERVICE_NAME="${SERVICE_NAME:-s3-zigbee-gateway}"
+if [ "$ENABLE_SERIAL" = "1" ]; then
+    SYSTEMCTL="$(readlink -f "$(command -v systemctl)")"
+    TMP_SERIAL="$(mktemp)"
+    sed -e "s|__OPERATOR_USER__|$OPERATOR_USER|g" -e "s|__SYSTEMCTL__|$SYSTEMCTL|g" -e "s|__SERVICE__|$SERVICE_NAME|g" \
+        "$SOURCE_DIR/deploy/sudoers/s3-gateway-webadmin-serial" > "$TMP_SERIAL"
+    visudo -cf "$TMP_SERIAL" >/dev/null || { rm -f "$TMP_SERIAL"; echo "Generated serial sudoers rule failed validation." >&2; exit 1; }
+    install -o root -g root -m 440 "$TMP_SERIAL" "$SERIAL_SUDOERS"
+    rm -f "$TMP_SERIAL"
+    set_env S3_SERIAL_CONSOLE 1
+    set_env S3_SERIAL_PAUSE_COMMAND "sudo -n $SYSTEMCTL stop $SERVICE_NAME"
+    set_env S3_SERIAL_RESUME_COMMAND "sudo -n $SYSTEMCTL start $SERVICE_NAME"
+    if ! id -nG "$OPERATOR_USER" | tr ' ' '\n' | grep -qx dialout; then
+        getent group dialout >/dev/null 2>&1 || { echo "Group 'dialout' is missing." >&2; exit 1; }
+        usermod -a -G dialout "$OPERATOR_USER"
+        echo "Added $OPERATOR_USER to the dialout group (needed to open the USB serial port)."
+    fi
+elif [ "$ENABLE_SERIAL" = "0" ]; then
+    rm -f "$SERIAL_SUDOERS"
+    set_env S3_SERIAL_CONSOLE 0
+fi
+
 sed -e "s|__OPERATOR_USER__|$OPERATOR_USER|g" -e "s|__OPERATOR_DIR__|$OPERATOR_DIR|g" \
     "$SOURCE_DIR/deploy/systemd/s3-gateway-webadmin.service" > "/etc/systemd/system/$SERVICE.service"
 chmod 644 "/etc/systemd/system/$SERVICE.service"
@@ -67,3 +103,8 @@ PORT="$(grep '^S3_WEBADMIN_PORT=' "$ENV_FILE" | cut -d= -f2)"
 echo
 echo "Web admin is running:  http://$(hostname -I | awk '{print $1}'):${PORT:-8080}/"
 echo "Sudo rule: $OPERATOR_USER may run only /usr/local/sbin/s3-gateway-dbup as root."
+if grep -q '^S3_SERIAL_CONSOLE=1' "$ENV_FILE"; then
+    echo "Serial console: on. $OPERATOR_USER may also stop/start $SERVICE_NAME (nothing else)."
+else
+    echo "Serial console: off (Serial page still sends node commands). Enable: sudo env S3_ENABLE_SERIAL_CONSOLE=1 $0"
+fi

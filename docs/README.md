@@ -22,6 +22,7 @@ A small, local website that runs **on the S3 Zigbee gateway itself** (a Raspberr
 |---|---|
 | **Overview** | Shows whether the gateway service is running, how many devices are in the list, and whether you have saved changes the gateway is not using yet. Holds the **Apply changes** button. |
 | **Devices** | Add, edit and remove street-light nodes (`samplelist.csv`). Supports adding many at once, filtering, downloading the list, and replacing the whole list from a CSV file. |
+| **Serial** | Send commands to street lights right away (poll, blink, lamp on/off/dim, manual override) through the running gateway. An optional, off-by-default **direct console** types raw commands to the gateway radio, like `minicom`. |
 | **Settings** | Edit the gateway configuration (`pygw_conf.py`) through a validated form. Every field is labelled with its exact variable name. |
 | **Logs** | Read `gateway.log`, `mqtt.log` and `error.log` (and their rotated copies) with tail length, level filter, text search, auto-refresh and download. |
 
@@ -60,6 +61,8 @@ The website does not replace the existing operator procedure; it is a friendlier
 
 * Login required (password hash, CSRF tokens, lockout for 60 seconds after 5 failed attempts). The site **refuses to start without a password**.
 * The only extra privilege it has is passwordless `sudo` for one command: `/usr/local/sbin/s3-gateway-dbup`, for the operator account.
+* The Serial page's **direct console** is off by default. Turning it on (see INSTALLATION.md) adds one more rule that allows only `systemctl stop|start s3-zigbee-gateway`. Node controls need no extra privilege: they ask the running gateway to send the command.
+* Serial commands are limited to a fixed set and to 4-hex-character node IDs. The console only opens detected USB serial ports, accepts printable ASCII lines up to 96 characters, and gives the port back (restarting the gateway) after 10 idle minutes.
 * The site uses **plain HTTP**. Keep it on the site LAN or VPN and **do not expose the port to the internet**.
 * The database password (`db_password`) is never sent back to the browser. Leave the box blank to keep the current one.
 * Log viewing is limited to `gateway`, `mqtt` and `error` log files (including dated rotations) in the log directory.
@@ -87,17 +90,23 @@ The website does not replace the existing operator procedure; it is a friendlier
 | `S3_WEBADMIN_SECRET_KEY` | *(set by installer)* | Random string that signs login cookies |
 | `S3_SERVICE_NAME` | `s3-zigbee-gateway` | Gateway service whose status is shown on Overview |
 | `S3_GATEWAY_ENV_FILE` | `/opt/s3-gateway/app/.env` | File the gateway ID is read from |
+| `S3_GATEWAY_API` | `http://127.0.0.1:9090` | The gateway's own REST server, used by Serial > Node controls |
+| `S3_SERIAL_CONSOLE` | `0` | Turns the Serial page's direct console on (set by the installer) |
+| `S3_SERIAL_PORT` | `auto` | `auto` = the USB serial ports found on the gateway, or a fixed device such as `/dev/ttyUSB0` |
+| `S3_SERIAL_IDLE_SECONDS` | `600` | Idle time before the console closes itself and restarts the gateway (minimum 60) |
+| `S3_SERIAL_PAUSE_COMMAND` / `S3_SERIAL_RESUME_COMMAND` | `sudo -n systemctl stop/start <service>` | Written by the installer |
 | `S3_WEBADMIN_APPLY_TIMEOUT` | `900` | Seconds to wait for Apply before giving up (15 minutes) |
 
 ### Source layout
 
 ```
 webadmin/
-├── app.py          # routes: login, overview, devices, settings, logs
+├── app.py          # routes: login, overview, devices, serial, settings, logs
 ├── applier.py      # runs s3-gateway-dbup in the background, tracks pending changes
 ├── confstore.py    # validated, in-place editing of pygw_conf.py
 ├── csvstore.py     # reading/validating/writing samplelist.csv
 ├── logview.py      # safe read-only log access
+├── serialtool.py   # Serial page: node commands via the gateway REST API, direct console
 ├── envfile.py      # reads GATEWAY_ID from the gateway .env
 ├── fileutil.py     # atomic writes + rolling backups
 ├── hashpw.py       # helper that creates the password hash
@@ -106,9 +115,11 @@ webadmin/
 deploy/
 ├── systemd/s3-gateway-webadmin.service
 ├── sudoers/s3-gateway-webadmin
+├── sudoers/s3-gateway-webadmin-serial   # optional, installed only with the serial console
 └── webadmin.env.example
 scripts/install-webadmin.sh
 tests/test_webadmin.py
+tests/test_serial.py
 ```
 
 ## Development
@@ -123,7 +134,7 @@ S3_WEBADMIN_ALLOW_NOAUTH=1 S3_DBUP_COMMAND="echo dbup" python -m webadmin
 Put a `samplelist.csv` and `pygw_conf.py` in `/tmp/S3Gateway`, then open <http://localhost:8080/>. Run the tests with:
 
 ```bash
-python -m unittest tests.test_webadmin
+python -m unittest tests.test_webadmin tests.test_serial
 ```
 
 `S3_WEBADMIN_ALLOW_NOAUTH=1` disables the login and is for local testing only.

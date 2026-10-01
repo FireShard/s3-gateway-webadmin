@@ -1,4 +1,5 @@
 """S3 gateway local web admin (Flask)."""
+import atexit
 import hmac
 import secrets
 import time
@@ -8,7 +9,7 @@ from flask import (Flask, Response, abort, flash, jsonify, redirect, render_temp
                    request, send_file, session, url_for)
 from werkzeug.security import check_password_hash
 
-from . import confstore, csvstore, logview
+from . import confstore, csvstore, logview, serialtool
 from .applier import Applier, service_state
 from .settings import Settings
 
@@ -35,6 +36,12 @@ def create_app(settings=None):
     applier = Applier(s)
     backups = s.state_dir / "backups"
     fails = {}  # ip -> [count, locked_until]
+    gateway = serialtool.GatewayClient(s.gateway_api)
+    console = serialtool.SerialConsole(s, service_state=lambda: service_state(s.service_name))
+    app.extensions["s3_console"] = console
+    if s.serial_console:
+        console.recover()
+        atexit.register(console.close, "Web admin stopped")
 
     # ---------------------------------------------------------------- helpers
     def defaults_pan_channel():
@@ -283,6 +290,97 @@ def create_app(settings=None):
             flash("Check " + ", ".join(risky) + " carefully before applying: a wrong value can stop the "
                   "gateway from starting or from reaching its database. The previous pygw_conf.py is backed up.", "info")
         return redirect(url_for("settings_page"))
+
+    # ---------------------------------------------------------------- serial
+    def _json_body():
+        data = request.get_json(silent=True)
+        return data if isinstance(data, dict) else {}
+
+    def _serial_error(exc):
+        return jsonify(error=exc.message, code=exc.code), exc.status
+
+    def _console_guard():
+        if not s.serial_console:
+            raise serialtool.SerialError("The direct console is turned off on this gateway.", 403, "disabled")
+
+    @app.route("/serial")
+    def serial_page():
+        rows = csvstore.load(s.csv_path)
+        try:
+            gw = confstore.load(s.conf_path)["values"]
+            zc = [{"label": f"Gateway {i}", "cmd": "+ZC" + "".join(gw[k])}
+                  for i, k in ((1, "first_GW_data"), (2, "second_GW_data"))]
+        except Exception:
+            zc = []
+        return render_template(
+            "serial.html", devices=rows, actions=serialtool.ACTIONS, levels=serialtool.LEVELS,
+            console_on=s.serial_console, zc=zc, idle_minutes=s.serial_idle_seconds // 60,
+            baud=serialtool.BAUD, pending=applier.pending())
+
+    @app.route("/api/serial/node-command", methods=["POST"])
+    def serial_node_command():
+        body = _json_body()
+        action = str(body.get("action", ""))
+        try:
+            result = gateway.send(action, body.get("nodes"), body.get("level"))
+        except serialtool.SerialError as exc:
+            return _serial_error(exc)
+        label = "Dim to level " + str(body.get("level")) if action == "dim-level" else serialtool.ACTIONS[action][1]
+        status = 200 if not result["failed"] else 502
+        return jsonify(**result, label=label, ok=not result["failed"]), status
+
+    @app.route("/api/serial/status")
+    def serial_status():
+        return jsonify(console.status() | {
+            "gateway_reachable": gateway.reachable(),
+            "service": service_state(s.service_name),
+        })
+
+    @app.route("/api/serial/open", methods=["POST"])
+    def serial_open():
+        body = _json_body()
+        try:
+            _console_guard()
+            console.open(body.get("port"), bool(body.get("pause")))
+        except serialtool.SerialError as exc:
+            return _serial_error(exc)
+        return jsonify(console.status())
+
+    @app.route("/api/serial/close", methods=["POST"])
+    def serial_close():
+        err = console.close() if s.serial_console else ""
+        return jsonify(console.status() | {"warning": err})
+
+    @app.route("/api/serial/send", methods=["POST"])
+    def serial_send():
+        try:
+            _console_guard()
+            console.send(_json_body().get("text"))
+        except serialtool.SerialError as exc:
+            return _serial_error(exc)
+        return jsonify(ok=True)
+
+    @app.route("/api/serial/reset-node", methods=["POST"])
+    def serial_reset_node():
+        try:
+            _console_guard()
+            console.reset_node()
+        except serialtool.SerialError as exc:
+            return _serial_error(exc)
+        return jsonify(ok=True)
+
+    @app.route("/api/serial/clear", methods=["POST"])
+    def serial_clear():
+        console.clear()
+        return jsonify(ok=True)
+
+    @app.route("/api/serial/read")
+    def serial_read():
+        try:
+            since = int(request.args.get("since", 0))
+        except ValueError:
+            since = 0
+        return jsonify(console.read(since, active=request.args.get("active") == "1"))
 
     # ------------------------------------------------------------------ logs
     @app.route("/logs")

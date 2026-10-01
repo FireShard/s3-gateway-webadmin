@@ -1,0 +1,5 @@
+# Optional. Installed only by: sudo env S3_ENABLE_SERIAL_CONSOLE=1 scripts/install-webadmin.sh
+# Lets the web admin's direct serial console pause the gateway service (it holds the USB port)
+# and start it again afterwards. Exact commands only; nothing else.
+# __OPERATOR_USER__, __SYSTEMCTL__ and __SERVICE__ are replaced by scripts/install-webadmin.sh.
+__OPERATOR_USER__ ALL=(root) NOPASSWD: __SYSTEMCTL__ stop __SERVICE__, __SYSTEMCTL__ start __SERVICE__

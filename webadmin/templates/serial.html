@@ -1,0 +1,352 @@
+{% extends "base.html" %}
+{% block title %}Serial{% endblock %}
+{% block body %}
+<div class="page-head"><h1>Serial</h1><p>Send commands to lamp nodes through the gateway's USB radio.</p></div>
+
+<div class="tabs" role="tablist" aria-label="Serial tools">
+  <button type="button" role="tab" id="tab-nodes" aria-controls="pane-nodes" aria-selected="true">Node controls</button>
+  <button type="button" role="tab" id="tab-console" aria-controls="pane-console" aria-selected="false" tabindex="-1">Direct console</button>
+</div>
+
+<!-- ============================ Node controls ============================ -->
+<div id="pane-nodes" role="tabpanel" aria-labelledby="tab-nodes">
+  <section class="panel plain">
+    <div class="toolbar">
+      <h2>Devices</h2>
+      <input id="devfilter" type="search" placeholder="Filter devices" aria-label="Filter devices">
+      <button type="button" class="btn sm" id="selshown">Select shown</button>
+      <button type="button" class="btn sm" id="selnone">Clear</button>
+    </div>
+    {% if devices %}
+    <ul class="chips" id="devlist">
+      {% for d in devices %}
+      <li data-text="{{ d.pole_node|lower }} {{ d.node|lower }}"><label class="chip"><input type="checkbox" value="{{ d.node }}"><span class="nm">{{ d.pole_node }}</span><span class="id">{{ d.node }}</span></label></li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <div class="empty">No devices yet. Add them on the <a href="{{ url_for('devices') }}">Devices</a> page, or type node IDs below.</div>
+    {% endif %}
+    <div class="extra">
+      <label for="extra">Other node IDs <span class="muted">(4 hex characters each, separated by spaces or commas)</span></label>
+      <input id="extra" class="mono" placeholder="8EED 8EEE" autocomplete="off" spellcheck="false">
+      <small id="extrahint" class="muted"></small>
+    </div>
+  </section>
+
+  <section class="panel">
+    <header><h2>Send to <span id="selcount">0 devices</span></h2>
+      <p>The gateway sends each command over the radio. Replies from the lamps appear in the <a href="{{ url_for('logs') }}">gateway log</a>.</p></header>
+    <div class="body actions">
+      <div class="agroup"><h3>Check</h3><div class="arow">
+        <button type="button" class="act" data-action="poll"><b>{{ actions['poll'][1] }}</b><code>{{ actions['poll'][2] }}</code></button>
+        <button type="button" class="act" data-action="blink"><b>{{ actions['blink'][1] }}</b><code>{{ actions['blink'][2] }}</code></button>
+      </div></div>
+      <div class="agroup"><h3>Lamp</h3><div class="arow">
+        <button type="button" class="act" data-action="lamp-on"><b>{{ actions['lamp-on'][1] }}</b><code>{{ actions['lamp-on'][2] }}</code></button>
+        <button type="button" class="act" data-action="lamp-off"><b>{{ actions['lamp-off'][1] }}</b><code>{{ actions['lamp-off'][2] }}</code></button>
+        <button type="button" class="act" data-action="dim"><b>{{ actions['dim'][1] }}</b><code>{{ actions['dim'][2] }}</code></button>
+        <div class="levelbox">
+          <label for="level">Level code</label>
+          <div class="lvrow"><select id="level" aria-describedby="lvhint">{% for l in levels %}<option>{{ l }}</option>{% endfor %}</select>
+          <button type="button" class="act" data-action="dim-level"><b>Dim to level</b><code>+LC<i>n</i></code></button></div>
+        </div>
+      </div><small id="lvhint" class="muted">The code goes to the node as-is. The gateway code does not say what each number means, so try it on one lamp first.</small></div>
+      <div class="agroup"><h3>Manual override</h3><div class="arow">
+        <button type="button" class="act" data-action="override-on"><b>{{ actions['override-on'][1] }}</b><code>{{ actions['override-on'][2] }}</code></button>
+        <button type="button" class="act" data-action="override-off"><b>{{ actions['override-off'][1] }}</b><code>{{ actions['override-off'][2] }}</code></button>
+      </div></div>
+      <p class="muted note">The gateway keeps running its own daily schedule. During the inactive hours it switches off any lamp it finds lit, so a lamp you turn on then may not stay on unless manual override is on.</p>
+    </div>
+  </section>
+
+  <section class="panel plain">
+    <div class="toolbar"><h2>Sent from this page</h2><button type="button" class="btn sm" id="feedclear">Clear</button></div>
+    <ol class="feed" id="feed" aria-live="polite"><li class="none">Nothing sent yet.</li></ol>
+  </section>
+</div>
+
+<!-- ============================ Direct console ============================ -->
+<div id="pane-console" role="tabpanel" aria-labelledby="tab-console" hidden>
+{% if not console_on %}
+  <section class="panel">
+    <header><h2>The direct console is turned off</h2>
+      <p>It works like minicom: you type raw commands such as <code>+DS</code> and read what the gateway node answers. To do that it has to stop the gateway service and take over the USB port, so it is switched on separately.</p></header>
+    <div class="body">
+      <p>To turn it on, run this on the gateway:</p>
+      <pre class="out">sudo env S3_ENABLE_SERIAL_CONSOLE=1 scripts/install-webadmin.sh</pre>
+      <p class="muted">That adds a sudo rule that lets the web admin stop and start the gateway service, and nothing else.</p>
+    </div>
+  </section>
+{% else %}
+  <section class="panel">
+    <div class="conbar">
+      <div class="constate"><span class="lamp" id="clamp"></span><div><div class="cs-main" id="cstate">Checking</div><div class="cs-sub muted" id="csub"></div></div></div>
+      <div class="conctl">
+        <div><label for="port">Port</label><select id="port"></select></div>
+        <button type="button" class="primary" id="openbtn">Open port</button>
+        <button type="button" class="btn" id="closebtn" hidden>Close</button>
+      </div>
+    </div>
+    <div id="cnotice" class="notice" hidden></div>
+  </section>
+
+  <section class="panel plain">
+    <div class="log-sub">
+      <span class="grow muted" id="cmeta">{{ baud }} baud, 8 data bits, no parity, 1 stop bit. Each line is sent with CR LF.</span>
+      <label><input type="checkbox" id="cauto" checked> Follow output</label>
+      <button type="button" class="btn sm" id="cclear">Clear</button>
+      <button type="button" class="btn sm" id="cdl">Download</button>
+    </div>
+    <div id="cterm" class="term short" tabindex="0" role="log" aria-label="Serial console output"><div class="ln none">The port is closed.</div></div>
+    <form id="cmdform" class="cmdrow" autocomplete="off">
+      <span class="prompt" aria-hidden="true">&gt;</span>
+      <input id="cmd" class="mono" placeholder="+DS" maxlength="96" spellcheck="false" autocapitalize="off" aria-label="Command to send" disabled>
+      <button class="primary" id="sendbtn" disabled>Send</button>
+    </form>
+    <div class="quick">
+      <span class="muted">Quick:</span>
+      <button type="button" class="btn sm" data-send="+DS" disabled>Identify <code>+DS</code></button>
+      {% for z in zc %}<button type="button" class="btn sm" data-fill="{{ z.cmd }}" disabled title="Fills the box so you can check it before sending">Configure {{ z.label|lower }} <code>{{ z.cmd }}</code></button>{% endfor %}
+      <button type="button" class="btn sm danger" id="resetnode" disabled>Reset gateway node <code>+DR</code></button>
+      <span class="muted grow-end" id="idle"></span>
+    </div>
+    <div id="cmderr" class="cmderr" role="alert" hidden></div>
+  </section>
+  <p class="muted note">While you hold the port the gateway is stopped, so polling and data collection pause. Closing the port (or {{ idle_minutes }} minutes without activity) starts the gateway again.</p>
+{% endif %}
+</div>
+
+<script>
+const CSRF = {{ csrf_token()|tojson }};
+const LOGIN = {{ url_for('login')|tojson }};
+const URLS = {
+  node: {{ url_for('serial_node_command')|tojson }}, status: {{ url_for('serial_status')|tojson }},
+  open: {{ url_for('serial_open')|tojson }}, close: {{ url_for('serial_close')|tojson }},
+  send: {{ url_for('serial_send')|tojson }}, read: {{ url_for('serial_read')|tojson }},
+  reset: {{ url_for('serial_reset_node')|tojson }}, clear: {{ url_for('serial_clear')|tojson }},
+};
+const CONSOLE_ON = {{ console_on|tojson }};
+const $ = id => document.getElementById(id);
+const pad = n => String(n).padStart(2, '0');
+const clock = () => { const d = new Date(); return pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds()); };
+
+async function api(url, body) {
+  const opt = body === undefined ? {} : {method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRF-Token': CSRF}, body: JSON.stringify(body)};
+  const r = await fetch(url, opt);
+  if (r.status === 401) { location.href = LOGIN; throw new Error('login'); }
+  let data = {};
+  try { data = await r.json(); } catch (e) {}
+  return {ok: r.ok, status: r.status, data};
+}
+
+/* ---------------- tabs ---------------- */
+const tabs = [$('tab-nodes'), $('tab-console')], panes = [$('pane-nodes'), $('pane-console')];
+function showTab(i, focus) {
+  tabs.forEach((t, k) => { t.setAttribute('aria-selected', k === i); t.tabIndex = k === i ? 0 : -1; panes[k].hidden = k !== i; });
+  if (focus) tabs[i].focus();
+  try { history.replaceState(null, '', i ? '#console' : '#nodes'); } catch (e) {}
+  if (CONSOLE_ON) i === 1 ? consoleShown() : consoleHidden();
+}
+tabs.forEach((t, i) => {
+  t.onclick = () => showTab(i);
+  t.onkeydown = e => { if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); showTab((i + 1) % 2, true); } };
+});
+
+/* ---------------- node controls ---------------- */
+const boxes = () => [...document.querySelectorAll('#devlist input[type=checkbox]')];
+const HEX4 = /^[0-9A-Fa-f]{4}$/;
+function extraIds() {
+  const parts = $('extra').value.split(/[\s,;-]+/).filter(Boolean);
+  return {ok: parts.filter(p => HEX4.test(p)).map(p => p.toUpperCase()), bad: parts.filter(p => !HEX4.test(p))};
+}
+function selected() {
+  const s = new Set(boxes().filter(b => b.checked).map(b => b.value));
+  extraIds().ok.forEach(v => s.add(v));
+  return [...s];
+}
+function refreshSel() {
+  const n = selected().length, e = extraIds();
+  $('selcount').textContent = n + (n === 1 ? ' device' : ' devices');
+  $('extrahint').textContent = e.bad.length ? 'Not a node ID: ' + e.bad.join(', ') : '';
+  document.querySelectorAll('.act').forEach(b => b.disabled = n === 0);
+}
+document.addEventListener('change', e => { if (e.target.closest('#devlist')) refreshSel(); });
+$('extra').oninput = refreshSel;
+$('devfilter').oninput = e => {
+  const q = e.target.value.trim().toLowerCase();
+  document.querySelectorAll('#devlist li').forEach(li => li.hidden = q && !li.dataset.text.includes(q));
+};
+$('selshown').onclick = () => { document.querySelectorAll('#devlist li:not([hidden]) input').forEach(b => b.checked = true); refreshSel(); };
+$('selnone').onclick = () => { boxes().forEach(b => b.checked = false); $('extra').value = ''; refreshSel(); };
+$('feedclear').onclick = () => { $('feed').innerHTML = '<li class="none">Nothing sent yet.</li>'; };
+
+const NEEDS_CONFIRM = ['lamp-on', 'lamp-off', 'dim', 'dim-level', 'override-on', 'override-off'];
+function feedAdd(label, nodes, ok, text) {
+  const feed = $('feed'); feed.querySelector('.none')?.remove();
+  const li = document.createElement('li'); li.className = ok ? 'ok' : 'bad';
+  const who = nodes.length > 4 ? nodes.length + ' devices' : nodes.join(', ');
+  li.innerHTML = '<span class="t"></span><b></b><span class="who"></span><span class="res"></span>';
+  li.children[0].textContent = clock(); li.children[1].textContent = label;
+  li.children[2].textContent = who; li.children[3].textContent = text;
+  feed.prepend(li);
+}
+document.querySelectorAll('.act').forEach(btn => btn.onclick = async () => {
+  const action = btn.dataset.action, nodes = selected(), level = $('level').value;
+  if (!nodes.length) return;
+  const name = btn.querySelector('b').textContent + (action === 'dim-level' ? ' ' + level : '');
+  if (nodes.length >= 5 && NEEDS_CONFIRM.includes(action) &&
+      !confirm(name + ' to ' + nodes.length + ' devices?')) return;
+  document.querySelectorAll('.act').forEach(b => b.disabled = true);
+  try {
+    const r = await api(URLS.node, {action, nodes, level});
+    if (r.ok) feedAdd(name, nodes, true, 'Sent to the gateway');
+    else if (r.data.failed?.length) feedAdd(name, r.data.failed, false, 'Gateway refused ' + r.data.failed.length + ' of ' + nodes.length);
+    else feedAdd(name, nodes, false, r.data.error || 'Failed');
+  } catch (e) { if (e.message !== 'login') feedAdd(name, nodes, false, 'Could not reach the web admin'); }
+  refreshSel();
+});
+refreshSel();
+
+/* ---------------- direct console ---------------- */
+let since = 0, timer = null, isOpen = false, lastPorts = '', shown = false, history_ = [], hpos = 0;
+const transcript = [];
+function consoleShown() { shown = true; poll(); }
+function consoleHidden() { shown = false; clearTimeout(timer); }
+
+function lineClass(l) {
+  if (l.dir !== 'rx') return l.dir;
+  const m = /^#([A-Z]\d)\|/.exec(l.text);
+  return 'rx' + (m ? ' lbl-' + m[1][0] : '');
+}
+function addLines(lines) {
+  if (!lines.length) return;
+  const term = $('cterm'); term.querySelector('.none')?.remove();
+  const follow = $('cauto').checked;
+  const frag = document.createDocumentFragment();
+  lines.forEach(l => {
+    const d = document.createElement('div'); d.className = 'ln ' + lineClass(l);
+    const t = document.createElement('span'); t.className = 't'; t.textContent = l.t;
+    const p = document.createElement('span'); p.className = 'p'; p.textContent = l.dir === 'tx' ? '>' : l.dir === 'sys' ? '#' : '<';
+    const x = document.createElement('span'); x.textContent = l.text;
+    d.append(t, p, x); frag.appendChild(d);
+    transcript.push(l.t + ' ' + p.textContent + ' ' + l.text);
+  });
+  term.appendChild(frag);
+  while (term.childElementCount > 1500) term.firstElementChild.remove();
+  if (follow) term.scrollTop = term.scrollHeight;
+}
+function setEnabled(on) {
+  $('cmd').disabled = !on; $('sendbtn').disabled = !on;
+  document.querySelectorAll('[data-send],[data-fill]').forEach(b => b.disabled = !on);
+  $('resetnode').disabled = !on;
+}
+function fmtLeft(s) { return Math.floor(s / 60) + ':' + pad(s % 60); }
+function showErr(msg) { const e = $('cmderr'); e.textContent = msg || ''; e.hidden = !msg; }
+
+function applyStatus(st) {
+  const wasOpen = isOpen; isOpen = st.open;
+  const lamp = $('clamp'), main = $('cstate'), sub = $('csub');
+  const ports = st.ports || [], key = JSON.stringify(ports);
+  if (key !== lastPorts) {
+    lastPorts = key; const sel = $('port'), cur = sel.value; sel.innerHTML = '';
+    ports.forEach(p => sel.add(new Option(p.device + (p.description && p.description !== 'n/a' ? ' - ' + p.description : ''), p.device)));
+    if (!ports.length) sel.add(new Option('No USB serial port found', ''));
+    if (cur) sel.value = cur;
+  }
+  $('port').disabled = isOpen || !ports.length;
+  const running = st.service === 'active';
+  if (st.open) {
+    lamp.className = 'lamp ok'; main.textContent = 'Open on ' + st.port;
+    sub.textContent = st.paused ? 'Gateway service is paused while you use the port.' : 'The port was free, the gateway was not running.';
+  } else if (running) {
+    lamp.className = 'lamp warn'; main.textContent = 'The gateway has the port';
+    sub.textContent = 'Opening pauses the gateway service. Polling stops until you close the port.';
+  } else {
+    lamp.className = 'lamp'; main.textContent = 'Closed';
+    sub.textContent = st.service ? 'Gateway service is ' + st.service + '.' : '';
+  }
+  $('openbtn').hidden = isOpen; $('closebtn').hidden = !isOpen;
+  $('openbtn').textContent = running ? 'Pause gateway and open' : 'Open port';
+  $('openbtn').disabled = !ports.length;
+  setEnabled(isOpen);
+  $('idle').textContent = isOpen && st.idle_left != null ? 'Closes itself in ' + fmtLeft(st.idle_left) + ' if idle' : '';
+  const n = $('cnotice'); n.hidden = !st.notice; n.textContent = st.notice || '';
+  if (isOpen && !wasOpen) { $('cmd').focus(); }
+  if (!isOpen && wasOpen && !$('cterm').querySelector('.none')) { /* keep the transcript on screen after closing */ }
+}
+
+async function poll() {
+  clearTimeout(timer);
+  if (!shown) return;
+  try {
+    const st = await api(URLS.status);
+    if (st.ok) applyStatus(st.data);
+    if (st.ok && (st.data.open || since === 0)) {
+      const r = await api(URLS.read + '?since=' + since + (document.visibilityState === 'visible' ? '&active=1' : ''));
+      if (r.ok) { addLines(r.data.lines); since = r.data.next; }
+    }
+  } catch (e) {}
+  timer = setTimeout(poll, isOpen ? 800 : 3000);
+}
+
+if (CONSOLE_ON) {
+  $('openbtn').onclick = async () => {
+    const pausing = $('openbtn').textContent.startsWith('Pause');
+    if (pausing && !confirm('This stops the gateway service while you use the port. Polling and data collection pause until you close it. Continue?')) return;
+    showErr(''); $('openbtn').disabled = true; $('openbtn').textContent = pausing ? 'Pausing gateway...' : 'Opening...';
+    try {
+      const r = await api(URLS.open, {port: $('port').value, pause: pausing});
+      if (!r.ok) showErr(r.data.error || 'Could not open the port.');
+    } catch (e) {}
+    poll();
+  };
+  $('closebtn').onclick = async () => {
+    $('closebtn').disabled = true;
+    try {
+      const r = await api(URLS.close, {});
+      if (r.data.warning) showErr(r.data.warning);
+    } catch (e) {}
+    $('closebtn').disabled = false; poll();
+  };
+  async function sendLine(text) {
+    showErr('');
+    try {
+      const r = await api(URLS.send, {text});
+      if (!r.ok) { showErr(r.data.error || 'Send failed.'); return false; }
+    } catch (e) { return false; }
+    history_.push(text); hpos = history_.length; poll(); return true;
+  }
+  $('cmdform').onsubmit = async e => {
+    e.preventDefault();
+    const v = $('cmd').value.trim(); if (!v) return;
+    if (await sendLine(v)) $('cmd').value = '';
+  };
+  $('cmd').onkeydown = e => {
+    if (e.key === 'ArrowUp' && history_.length) { e.preventDefault(); hpos = Math.max(0, hpos - 1); $('cmd').value = history_[hpos]; }
+    else if (e.key === 'ArrowDown' && history_.length) { e.preventDefault(); hpos = Math.min(history_.length, hpos + 1); $('cmd').value = history_[hpos] || ''; }
+  };
+  document.querySelectorAll('[data-send]').forEach(b => b.onclick = () => sendLine(b.dataset.send));
+  document.querySelectorAll('[data-fill]').forEach(b => b.onclick = () => { $('cmd').value = b.dataset.fill; $('cmd').focus(); });
+  $('resetnode').onclick = async () => {
+    if (!confirm('Reset the gateway node? This sends +DR with two stop bits, like the gateway does when it detects a hung node.')) return;
+    showErr('');
+    try { const r = await api(URLS.reset, {}); if (!r.ok) showErr(r.data.error || 'Reset failed.'); } catch (e) {}
+    poll();
+  };
+  $('cclear').onclick = async () => {
+    await api(URLS.clear, {}).catch(() => {});
+    $('cterm').innerHTML = '<div class="ln none">Cleared.</div>'; transcript.length = 0;
+  };
+  $('cdl').onclick = () => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([transcript.join('\n') + '\n'], {type: 'text/plain'}));
+    a.download = 'serial-console-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-') + '.txt';
+    a.click(); URL.revokeObjectURL(a.href);
+  };
+  document.addEventListener('visibilitychange', () => { if (shown) poll(); });
+}
+
+window.addEventListener('hashchange', () => showTab(location.hash === '#console' ? 1 : 0));
+showTab(location.hash === '#console' ? 1 : 0);
+</script>
+{% endblock %}

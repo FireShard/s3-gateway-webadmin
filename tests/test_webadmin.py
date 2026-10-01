@@ -223,7 +223,7 @@ class AppTests(unittest.TestCase):
 
     def test_all_pages_render(self):
         self.login()
-        for p in ("/", "/devices", "/settings", "/logs"):
+        for p in ("/", "/devices", "/serial", "/settings", "/logs"):
             self.assertEqual(self.c.get(p).status_code, 200, p)
 
 
